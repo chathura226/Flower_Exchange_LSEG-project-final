@@ -8,6 +8,7 @@ std::ofstream file;
 
 typedef std::pair<double,int>pair;
 
+
 class orderObj{
 public:
     std::string clientOrderID;
@@ -19,16 +20,8 @@ public:
     std::string status;
 
 };
+void writeToFile(orderObj*,int,double);
 
-void writeToFile(orderObj* x,int qty,double price){
-
-    file<<x->clientOrderID<<","
-        <<x->inst<<","
-        <<x->side<<","
-        <<x->status<<","
-        <<qty<<","
-        <<price<<"\n";
-}
 class instrument{
 public:
     std::map<pair,orderObj*> buy;
@@ -54,15 +47,43 @@ int main(){
     file.open("execution_rep.csv",std::ios_base::app);//to append
     
     instrument rose;
-    orderObj* o1=new orderObj;
-    o1->clientOrderID="hi31";
-    o1->inst="Rose";
-    o1->side=2;
-    o1->price=523.00;
-    o1->qty=100;
-    o1->priority=1;
-    o1->status="New";
-    rose.newOrder(o1);
-    delete o1;
-	file.close();
+    char cliOrd[7],inst[8];
+    int side,qty;
+    double price;
+	if (FILE* filePointer = fopen("orders.csv", "r")) {
+        std::cout<<"hi"<<std::endl;
+		while (fscanf(filePointer, "%[^,],%[^,],%d,%d,%lf", cliOrd, inst, &side,&qty,&price)==5) {
+            std::cout<<cliOrd<<inst<<side<<qty<<price<<std::endl;
+            orderObj* o1=new orderObj;
+            o1->clientOrderID=cliOrd;
+            o1->inst=inst;
+            o1->side=side;
+            o1->price=price;
+            o1->qty=qty;
+            o1->priority=1;
+            o1->status="New";
+            rose.newOrder(o1);
+            delete o1;
+		}
+        fclose(filePointer);
+        
+	    file.close();
+	}
+
+    
+    
+}
+void writeToFile(orderObj* x,int qty,double price){
+	std::cout<<"edh\n"<<x->clientOrderID<<","
+        <<x->inst<<","
+        <<x->side<<","
+        <<x->status<<","
+        <<qty<<","
+        <<price<<"\n";
+    file<<x->clientOrderID<<","
+        <<x->inst<<","
+        <<x->side<<","
+        <<x->status<<","
+        <<qty<<","
+        <<price;
 }
