@@ -81,14 +81,11 @@ int minQty(orderObj* x,orderObj*y){
 class instrument{
 public:
     std::string name;
-    std::map<pair,orderObj*,compareOrder> buy;//write a comapre fun
+    std::map<pair,orderObj*,compareOrder> buy;//descending order
     std::map<pair,orderObj*> sell;
     void newOrder(orderObj* newObj){
         std::cout<<"Accessing "<<name<<" newOrder method\n";
-        auto relBegin=buy.begin();//side==2 occation
-
-        if(newObj->side==1) auto relBegin=sell.begin();
-        if((newObj->side==1&&!sell.empty())||(newObj->side==2&&!buy.empty()))printfDetails(relBegin->second);
+        auto relBegin = (newObj->side==2)  ? buy.begin() : sell.begin();
         if(newObj->side==1&&(sell.empty() || (relBegin->second->price)>newObj->price) ){
             auto x=buy.find(std::make_pair(newObj->price,newObj->priority));
             if(x!=buy.end()){
@@ -124,10 +121,12 @@ public:
                 if(isFill2){
                     orderObj* itr=relBegin->second;
                     sell.erase(std::make_pair(itr->price,itr->priority));
+                    if(!sell.empty()){
                     auto temp=sell.begin();
-                    while(temp->second->price==itr->price){
-                        temp->second->priority--;
-                        temp++;
+                        while(temp->second->price==itr->price){
+                            temp->second->priority--;
+                            temp++;
+                        }
                     }
                     delete itr;
                 }
@@ -180,7 +179,7 @@ int main(){
     double price;
 	if (FILE* filePointer = fopen("orders.csv", "r")) {
         std::cout<<"hi"<<std::endl;
-		while (fscanf(filePointer, "%[^,],%[^,],%d,%d,%lf", cliOrd, inst, &side,&qty,&price)==5) {
+		while (fscanf(filePointer, "%[^,],%[^,],%d,%d,%lf\n", cliOrd, inst, &side,&qty,&price)==5) {
             std::cout<<cliOrd<<inst<<side<<qty<<price<<"boohoo"<<std::endl;
             std::string cliOrdString=std::string(cliOrd);
             std::string instString=std::string(inst);
@@ -208,8 +207,8 @@ void writeToFile(orderObj* x,int qty,double price){
         <<x->side<<","
         <<x->status<<","
         <<qty<<","
-        <<price<<","
-        <<x->priority;//remove this later
+        <<price<<"\n";
+        //<<x->priority;//remove this later
 
 
 }
