@@ -47,14 +47,17 @@ public:
     }
     int executeQty(int qty){
         //doesnt need to check whether it becomes negative since i check that before calling this
-        std::cout<<this->clientOrderID<<std::endl;
+        std::cout<<"execute order called for "<<clientOrderID<<std::endl;
         this->qty-=qty;
         this->status="Pfill";
         if(this->qty==0){
             this->status="Fill";
+            std::cout<<"Execute order finished!\n";
             return 1;//returns 1 when order is fill
         }
+        std::cout<<"Execute order finished!\n";
         return 0;//return 0 when pfill
+        
     }
     
 };
@@ -65,7 +68,7 @@ void initializeInstrumentArray();
 int initializeIns(int);
 int validateAndCreate(std::string &cliOrd, std::string &inst, int &side,int &qty,double &price);
 void printfDetails(orderObj* x){
-    std::cout<<"pd\n"<<x->clientOrderID<<","
+    std::cout<<"print details of follwing\n"<<x->clientOrderID<<","
         <<x->inst<<","
         <<x->side<<","
         <<x->status<<","
@@ -74,7 +77,7 @@ void printfDetails(orderObj* x){
 }
 
 int minQty(orderObj* x,orderObj*y){
-    std::cout<<"qtys "<<x->qty<<" "<<y->qty<<std::endl;
+    std::cout<<"minqty called for  "<<x->qty<<" "<<y->qty<<std::endl;
     if(x->qty>y->qty)return y->qty;
     else return x->qty;
 }
@@ -122,19 +125,25 @@ public:
                     orderObj* itr=relBegin->second;
                     sell.erase(std::make_pair(itr->price,itr->priority));
                     if(!sell.empty()){
-                    auto temp=sell.begin();
+                        auto temp=sell.begin();
                         while(temp->second->price==itr->price){
                             temp->second->priority--;
                             temp++;
                         }
                     }
+                    std::cout<<"Deleting order "<<itr->clientOrderID<<std::endl;
                     delete itr;
+                    std::cout<<"Deleted!\n";
+                    if(!sell.empty()) relBegin=sell.begin();
+                    else break;
                 }
                 if(isFill1){
+                    std::cout<<"Deleting order "<<newObj->clientOrderID<<std::endl;
                     delete newObj;
+                    std::cout<<"Deleted!\n";
                     break;
                 }
-                relBegin++;
+                
             }
         }else if(newObj->side==2){//this is a sell order and theres a but order for equal or low price
             std::cout<<"inside side==2 but buy is not empty"<<std::endl;
@@ -150,18 +159,28 @@ public:
                 if(isFill2){
                     orderObj* itr=relBegin->second;
                     buy.erase(std::make_pair(itr->price,itr->priority));
-                    auto temp=buy.begin();
-                    while(temp->second->price==itr->price){
-                        temp->second->priority--;
-                        temp++;
+                    if(!buy.empty()){
+                        auto temp=buy.begin();
+                        while(temp->second->price==itr->price){
+                            temp->second->priority--;
+                            temp++;
+                        }
                     }
+                    std::cout<<"Deleting order "<<itr->clientOrderID<<std::endl;
                     delete itr;
+                    std::cout<<"Deleted!\n";
+                    if(!buy.empty()) relBegin=buy.begin();
+                    else break;
                 }
+
                 if(isFill1){
+                    std::cout<<"Deleting order "<<newObj->clientOrderID<<std::endl;
                     delete newObj;
+                    std::cout<<"Deleted!\n";
                     break;
                 }
-                relBegin++;
+                // if(!buy.empty())relBegin++;
+                // std::cout<<"After increment\n";
             }
         }
 
@@ -196,7 +215,7 @@ int main(){
     
 }
 void writeToFile(orderObj* x,int qty,double price){
-	std::cout<<"edh\n"<<x->clientOrderID<<","
+	std::cout<<"write to file called for following\n"<<x->clientOrderID<<","
         <<x->inst<<","
         <<x->side<<","
         <<x->status<<","
@@ -208,8 +227,9 @@ void writeToFile(orderObj* x,int qty,double price){
         <<x->status<<","
         <<qty<<","
         <<price<<"\n";
-        //<<x->priority;//remove this later
 
+        //<<x->priority;//remove this later
+    std::cout<<"write to file finished!\n";
 
 }
 

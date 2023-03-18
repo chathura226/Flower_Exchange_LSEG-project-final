@@ -1,3 +1,6 @@
-aa13,Rose,2,New,100,55
-aa14,Rose,1,Fill,50,55
-aa13,Rose,2,Pfill,50,55
+aa13,Rose,1,New,100,55
+aa14,Rose,1,New,100,65
+aa15,Rose,2,Pfill,100,65
+aa14,Rose,1,Fill,100,65
+aa15,Rose,2,Pfill,100,55
+aa13,Rose,1,Fill,100,55
