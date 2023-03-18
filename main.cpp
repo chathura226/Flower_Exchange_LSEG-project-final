@@ -3,11 +3,23 @@
 #include<string>
 #include<map>
 #include<fstream>
+#include<algorithm>
 static int orderNum=0;
 std::ofstream file;
 
-typedef std::pair<double,int>pair;
+typedef std::pair<double,int> pair;
 
+struct compareOrder{
+    bool operator()(const pair& a,const pair& b){
+        if(a.first>b.first){
+            return true;
+        }else if(a.first==b.first){
+            if(a.second<b.second){
+                return true;
+            }else return false;
+        }else return false;
+    }
+};
 
 class orderObj{
 public:
@@ -33,6 +45,17 @@ public:
         else if(side!=1 && side!=2)status="Rejected";
 
     }
+    int executeQty(int qty){
+        //doesnt need to check whether it becomes negative since i check that before calling this
+        std::cout<<this->clientOrderID<<std::endl;
+        this->qty-=qty;
+        this->status="Pfill";
+        if(this->qty==0){
+            this->status="Fill";
+            return 1;//returns 1 when order is fill
+        }
+        return 0;//return 0 when pfill
+    }
     
 };
 void writeToFile(orderObj*,int,double);
@@ -41,22 +64,109 @@ void writeToFile(orderObj*,int,double);
 void initializeInstrumentArray();
 int initializeIns(int);
 int validateAndCreate(std::string &cliOrd, std::string &inst, int &side,int &qty,double &price);
+void printfDetails(orderObj* x){
+    std::cout<<"pd\n"<<x->clientOrderID<<","
+        <<x->inst<<","
+        <<x->side<<","
+        <<x->status<<","
+        <<x->qty<<","
+        <<x->price<<"\n";
+}
 
+int minQty(orderObj* x,orderObj*y){
+    std::cout<<"qtys "<<x->qty<<" "<<y->qty<<std::endl;
+    if(x->qty>y->qty)return y->qty;
+    else return x->qty;
+}
 class instrument{
 public:
-    std::map<pair,orderObj*> buy;
+    std::string name;
+    std::map<pair,orderObj*,compareOrder> buy;//write a comapre fun
     std::map<pair,orderObj*> sell;
     void newOrder(orderObj* newObj){
-        if(newObj->side==1&&sell.empty()){
+        std::cout<<"Accessing "<<name<<" newOrder method\n";
+        auto relBegin=buy.begin();//side==2 occation
+
+        if(newObj->side==1) auto relBegin=sell.begin();
+        if((newObj->side==1&&!sell.empty())||(newObj->side==2&&!buy.empty()))printfDetails(relBegin->second);
+        if(newObj->side==1&&(sell.empty() || (relBegin->second->price)>newObj->price) ){
+            auto x=buy.find(std::make_pair(newObj->price,newObj->priority));
+            if(x!=buy.end()){
+                    int i=1;
+                    while((++x)->second->price==newObj->price)i++;
+                    newObj->priority=++i;
+            }
             buy.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
             writeToFile(newObj,newObj->qty,newObj->price);
             return;
-        }else if(newObj->side==2&&buy.empty()){
-        	
+        }else if(newObj->side==2&&(buy.empty() || (relBegin->second->price)<newObj->price)){
+            auto x=sell.find(std::make_pair(newObj->price,newObj->priority));
+            if(x!=sell.end()){
+                    int i=1;
+                    while((++x)->second->price==newObj->price)i++;
+                    newObj->priority=++i;
+            }
             sell.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
             writeToFile(newObj,newObj->qty,newObj->price);
             return;
+        }else if(newObj->side==1){//this is a buy order and theres a sell order for equal or low price
+            std::cout<<"inside side==1 but sell is not empty"<<std::endl;
+            while(!sell.empty() && (relBegin->second->price)<=newObj->price){
+                int execQty=minQty(newObj,relBegin->second);
+                printfDetails(relBegin->second);
+                std::cout<<"excec qty "<<execQty<<std::endl;
+                int isFill1=newObj->executeQty(execQty);
+                
+                writeToFile(newObj,execQty,relBegin->second->price);
+                int isFill2=relBegin->second->executeQty(execQty);
+                writeToFile(relBegin->second,execQty,relBegin->second->price);
+                
+                if(isFill2){
+                    orderObj* itr=relBegin->second;
+                    sell.erase(std::make_pair(itr->price,itr->priority));
+                    auto temp=sell.begin();
+                    while(temp->second->price==itr->price){
+                        temp->second->priority--;
+                        temp++;
+                    }
+                    delete itr;
+                }
+                if(isFill1){
+                    delete newObj;
+                    break;
+                }
+                relBegin++;
+            }
+        }else if(newObj->side==2){//this is a sell order and theres a but order for equal or low price
+            std::cout<<"inside side==2 but buy is not empty"<<std::endl;
+            while(!buy.empty() && (relBegin->second->price)>=newObj->price){
+            //while(!buy.empty() && (buy.begin()->second->price)>=newObj->price){    
+                std::cout<<"inside while loop\n";
+                int execQty=minQty(newObj,relBegin->second);
+                int isFill1=newObj->executeQty(execQty);
+                writeToFile(newObj,execQty,relBegin->second->price);
+                int isFill2=relBegin->second->executeQty(execQty);
+                writeToFile(relBegin->second,execQty,relBegin->second->price);
+                
+                if(isFill2){
+                    orderObj* itr=relBegin->second;
+                    buy.erase(std::make_pair(itr->price,itr->priority));
+                    auto temp=buy.begin();
+                    while(temp->second->price==itr->price){
+                        temp->second->priority--;
+                        temp++;
+                    }
+                    delete itr;
+                }
+                if(isFill1){
+                    delete newObj;
+                    break;
+                }
+                relBegin++;
+            }
         }
+
+        
     }
 };
 
@@ -71,7 +181,7 @@ int main(){
 	if (FILE* filePointer = fopen("orders.csv", "r")) {
         std::cout<<"hi"<<std::endl;
 		while (fscanf(filePointer, "%[^,],%[^,],%d,%d,%lf", cliOrd, inst, &side,&qty,&price)==5) {
-            std::cout<<cliOrd<<inst<<side<<qty<<price<<std::endl;
+            std::cout<<cliOrd<<inst<<side<<qty<<price<<"boohoo"<<std::endl;
             std::string cliOrdString=std::string(cliOrd);
             std::string instString=std::string(inst);
             int temp=validateAndCreate(cliOrdString,instString,side,qty,price);
@@ -98,7 +208,10 @@ void writeToFile(orderObj* x,int qty,double price){
         <<x->side<<","
         <<x->status<<","
         <<qty<<","
-        <<price;
+        <<price<<","
+        <<x->priority;//remove this later
+
+
 }
 
 
@@ -117,6 +230,13 @@ int initializeIns(int i){
         return 1;
     }
     allInstruments[i]=temp;
+    switch(i){
+        case 0: temp->name="Rose"; std::cout<<"Initialized the book for Rose\n"; break;
+        case 1: temp->name="Lavender";std::cout<<"Initialized the book for Lavender\n"; break;
+        case 2: temp->name="Lotus";std::cout<<"Initialized the book for Lotus\n"; break;
+        case 3: temp->name="Tulip";std::cout<<"Initialized the book for Tulip\n"; break;
+        case 4: temp->name="Orchid";std::cout<<"Initialized the book for Orchid\n"; break;
+    }
     return 0;
 
 }
