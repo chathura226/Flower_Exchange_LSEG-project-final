@@ -1,9 +1,68 @@
 Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
-aa13,ord1,Rose,1,55.00,100,New,20230319-213750.854
-aa14,ord2,Rose,1,65.00,100,New,20230319-213750.856
-aa15,ord3,Rose,2,65.00,100,Pfill,20230319-213750.857
-aa14,ord2,Rose,1,65.00,100,Fill,20230319-213750.857
-aa15,ord3,Rose,2,55.00,100,Pfill,20230319-213750.857
-aa13,ord1,Rose,1,55.00,100,Fill,20230319-213750.857
-aa16,ord4,Rose,1,1.00,100,Fill,20230319-213750.858
-aa15,ord3,Rose,2,1.00,100,Fill,20230319-213750.858
+aa13,ord1,Rose,2,55.00,100,New,20230319-215635.037
+
+Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
+aa13,ord1,Rose,2,55.00,100,New,20230319-215714.696
+aa14,ord2,Rose,2,45.00,100,New,20230319-215714.701
+aa15,ord3,Rose,1,35.00,100,New,20230319-215714.701
+
+Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
+aa13,ord1,Rose,2,55.00,100,New,20230319-215729.535
+aa14,ord2,Rose,2,45.00,100,New,20230319-215729.539
+aa15,ord3,Rose,1,45.00,100,Fill,20230319-215729.540
+aa14,ord2,Rose,2,45.00,100,Fill,20230319-215729.540
+
+Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
+aa13,ord1,Rose,2,55.00,100,New,20230319-215745.640
+aa14,ord2,Rose,2,45.00,100,New,20230319-215745.642
+aa15,ord3,Rose,1,45.00,100,Pfill,20230319-215745.643
+aa14,ord2,Rose,2,45.00,100,Fill,20230319-215745.643
+
+Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
+aa13,ord1,Rose,1,55.00,100,New,20230319-215800.290
+aa14,ord2,Rose,1,65.00,100,New,20230319-215800.292
+aa15,ord3,Rose,2,65.00,100,Pfill,20230319-215800.292
+aa14,ord2,Rose,1,65.00,100,Fill,20230319-215800.293
+aa15,ord3,Rose,2,55.00,100,Pfill,20230319-215800.293
+aa13,ord1,Rose,1,55.00,100,Fill,20230319-215800.293
+
+Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
+aa13,ord1,Rose,1,55.00,100,New,20230319-215815.776
+aa14,ord2,Rose,1,65.00,100,New,20230319-215815.782
+aa15,ord3,Rose,2,65.00,100,Pfill,20230319-215815.782
+aa14,ord2,Rose,1,65.00,100,Fill,20230319-215815.782
+aa15,ord3,Rose,2,55.00,100,Pfill,20230319-215815.782
+aa13,ord1,Rose,1,55.00,100,Fill,20230319-215815.782
+aa16,ord4,Rose,1,1.00,100,Fill,20230319-215815.782
+aa15,ord3,Rose,2,1.00,100,Fill,20230319-215815.782
+
+Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
+aa13,ord1,,1,55.00,100,Rejected,20230319-215829.531
+aa14,ord2,Rose,3,65.00,100,Rejected,20230319-215829.531
+aa15,ord3,Lavender,2,1.00,101,Rejected,20230319-215829.531
+aa16,ord4,Tulip,1,-1.00,100,Rejected,20230319-215829.536
+aa17,ord5,Orchid,1,-1.00,1000,Rejected,20230319-215829.536
+Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
+aa13,ord1,,1,55.00,100,Rejected,20230319-220837.200
+aa14,ord2,Rose,3,65.00,100,Rejected,20230319-220837.203
+aa15,ord3,Lavender,2,1.00,101,Rejected,20230319-220837.204
+aa16,ord4,Tulip,1,-1.00,100,Rejected,20230319-220837.205
+aa17,ord5,Orchid,1,-1.00,1000,Rejected,20230319-220837.206
+Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
+aa13,ord1,,1,55.00,100,Rejected,20230319-222028.029
+aa14,ord2,Rose,3,65.00,100,Rejected,20230319-222028.029
+aa15,ord3,Lavender,2,1.00,101,Rejected,20230319-222028.029
+aa16,ord4,Tulip,1,-1.00,100,Rejected,20230319-222028.029
+aa17,ord5,Orchid,1,-1.00,1000,Rejected,20230319-222028.042
+Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
+aa13,ord1,,1,55.00,100,Rejected,20230319-222100.652
+aa14,ord2,Rose,3,65.00,100,Rejected,20230319-222100.654
+aa15,ord3,Lavender,2,1.00,101,Rejected,20230319-222100.654
+aa16,ord4,Tulip,1,-1.00,100,Rejected,20230319-222100.655
+aa17,ord5,Orchid,1,-1.00,1000,Rejected,20230319-222100.656
+Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
+aa13,ord1,,1,55.00,100,Rejected,20230319-222119.756
+aa14,ord2,Rose,3,65.00,100,Rejected,20230319-222119.761
+aa15,ord3,Lavender,2,1.00,101,Rejected,20230319-222119.764
+aa16,ord4,Tulip,1,-1.00,100,Rejected,20230319-222119.766
+aa17,ord5,Orchid,1,-1.00,1000,Rejected,20230319-222119.767

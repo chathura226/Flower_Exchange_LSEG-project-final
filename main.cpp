@@ -11,9 +11,9 @@
 #include <sstream>  
 #include<vector>
 #include <chrono>
+#define LOGS_Enabled 0 //to enable my test logs
 static int orderNum=0;
 std::ofstream file;
-
 typedef std::pair<double,int> pair;
 
 struct compareOrder{
@@ -47,7 +47,7 @@ public:
         this->price=price;
         priority=1;
         status="New";
-        std::cout<<"New order object created!\n";
+        if(LOGS_Enabled)std::cout<<"New order object created!\n";
         if(cliOrd.size()==0 || inst.size()==0 )status="Rejected";
         else if(inst!="Rose" &&  inst!="Lavender"&& inst!="Lotus"&& inst!="Tulip"&& inst!="Orchid")status="Rejected";
         else if(price<=0 || qty<10 || qty>1000 || qty%10!=0)status="Rejected";
@@ -56,20 +56,20 @@ public:
     }
     int executeQty(int qty){
         //doesnt need to check whether it becomes negative since i check that before calling this
-        std::cout<<"execute order called for "<<clientOrderID<<std::endl;
+        if(LOGS_Enabled)std::cout<<"execute order called for "<<clientOrderID<<std::endl;
         this->qty-=qty;
         this->status="Pfill";
         if(this->qty==0){
             this->status="Fill";
-            std::cout<<"Execute order finished!\n";
+            if(LOGS_Enabled)std::cout<<"Execute order finished!\n";
             return 1;//returns 1 when order is fill
         }
-        std::cout<<"Execute order finished!\n";
+        if(LOGS_Enabled)std::cout<<"Execute order finished!\n";
         return 0;//return 0 when pfill
         
     }
     ~orderObj(){
-        std::cout<<"OrderObj destructor called!\n";
+        if(LOGS_Enabled)std::cout<<"OrderObj destructor called!\n";
     }
     
 };
@@ -80,7 +80,7 @@ void initializeInstrumentArray();
 int initializeIns(int);
 int validateAndCreate(std::string &cliOrd, std::string &inst, int &side,int &qty,double &price);
 void printfDetails(orderObj* x){
-    std::cout<<"print details of follwing\n"<<x->clientOrderID<<","
+    if(LOGS_Enabled)std::cout<<"print details of follwing\n"<<x->clientOrderID<<","
         <<x->inst<<","
         <<x->side<<","
         <<x->status<<","
@@ -89,7 +89,7 @@ void printfDetails(orderObj* x){
 }
 
 int minQty(orderObj* x,orderObj*y){
-    std::cout<<"minqty called for  "<<x->qty<<" "<<y->qty<<std::endl;
+    if(LOGS_Enabled)std::cout<<"minqty called for  "<<x->qty<<" "<<y->qty<<std::endl;
     if(x->qty>y->qty)return y->qty;
     else return x->qty;
 }
@@ -99,10 +99,10 @@ public:
     std::map<pair,orderObj*,compareOrder> buy;//descending order
     std::map<pair,orderObj*> sell;
     void newOrder(orderObj* newObj){
-        std::cout<<"Accessing "<<name<<" newOrder method\n";
+        if(LOGS_Enabled)std::cout<<"Accessing "<<name<<" newOrder method\n";
         auto relBegin = (newObj->side==2)  ? buy.begin() : sell.begin();
         if(newObj->side==1&&(sell.empty() || (relBegin->second->price)>newObj->price) ){
-            std::cout<<"Entered case 1: is sell.empty-> "<<sell.empty()<<"\n";
+            if(LOGS_Enabled)std::cout<<"Entered case 1: is sell.empty-> "<<sell.empty()<<"\n";
             auto x=buy.find(std::make_pair(newObj->price,newObj->priority));
             if(x!=buy.end()){
                     int i=1;
@@ -110,10 +110,11 @@ public:
                     newObj->priority=++i;
             }
             buy.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
+    
             writeToFile(newObj,newObj->qty,newObj->price);
             return;
         }else if(newObj->side==2&&(buy.empty() || (relBegin->second->price)<newObj->price)){
-            std::cout<<"Entered case 1: is sell.empty-> "<<buy.empty()<<"\n";
+            if(LOGS_Enabled)std::cout<<"Entered case 1: is sell.empty-> "<<buy.empty()<<"\n";
             auto x=sell.find(std::make_pair(newObj->price,newObj->priority));
             if(x!=sell.end()){
                     int i=1;
@@ -124,11 +125,11 @@ public:
             writeToFile(newObj,newObj->qty,newObj->price);
             return;
         }else if(newObj->side==1){//this is a buy order and theres a sell order for equal or low price
-            std::cout<<"inside side==1 but sell is not empty"<<std::endl;
+            if(LOGS_Enabled)std::cout<<"inside side==1 but sell is not empty"<<std::endl;
             while(!sell.empty() && (relBegin->second->price)<=newObj->price){
                 int execQty=minQty(newObj,relBegin->second);
                 printfDetails(relBegin->second);
-                std::cout<<"excec qty "<<execQty<<std::endl;
+                if(LOGS_Enabled)std::cout<<"excec qty "<<execQty<<std::endl;
                 int isFill1=newObj->executeQty(execQty);
                 
                 writeToFile(newObj,execQty,relBegin->second->price);
@@ -145,14 +146,14 @@ public:
                             temp++;
                         }
                     }
-                    std::cout<<"Deleting order "<<itr->clientOrderID<<std::endl;
+                    if(LOGS_Enabled)std::cout<<"Deleting order "<<itr->clientOrderID<<std::endl;
                     delete itr;
-                    std::cout<<"Deleted!\n";
+                    if(LOGS_Enabled)std::cout<<"Deleted!\n";
                 }
                 if(isFill1){
-                    std::cout<<"Deleting order "<<newObj->clientOrderID<<std::endl;
+                    if(LOGS_Enabled)std::cout<<"Deleting order "<<newObj->clientOrderID<<std::endl;
                     delete newObj;
-                    std::cout<<"Deleted!\n";
+                    if(LOGS_Enabled)std::cout<<"Deleted!\n";
                     return;
                 }
                 if(!sell.empty()) relBegin=sell.begin();
@@ -164,10 +165,10 @@ public:
             
 
         }else if(newObj->side==2){//this is a sell order and theres a but order for equal or low price
-            std::cout<<"inside side==2 but buy is not empty"<<std::endl;
+            if(LOGS_Enabled)std::cout<<"inside side==2 but buy is not empty"<<std::endl;
             while(!buy.empty() && (relBegin->second->price)>=newObj->price){
             //while(!buy.empty() && (buy.begin()->second->price)>=newObj->price){    
-                std::cout<<"inside while loop\n";
+                if(LOGS_Enabled)std::cout<<"inside while loop\n";
                 int execQty=minQty(newObj,relBegin->second);
                 int isFill1=newObj->executeQty(execQty);
                 writeToFile(newObj,execQty,relBegin->second->price);
@@ -184,16 +185,16 @@ public:
                             temp++;
                         }
                     }
-                    std::cout<<"Deleting order "<<itr->clientOrderID<<std::endl;
+                    if(LOGS_Enabled)std::cout<<"Deleting order "<<itr->clientOrderID<<std::endl;
                     delete itr;
-                    std::cout<<"Deleted!\n";
+                    if(LOGS_Enabled)std::cout<<"Deleted!\n";
                     
                 }
 
                 if(isFill1){
-                    std::cout<<"Deleting order "<<newObj->clientOrderID<<std::endl;
+                    if(LOGS_Enabled)std::cout<<"Deleting order "<<newObj->clientOrderID<<std::endl;
                     delete newObj;
-                    std::cout<<"Deleted!\n";
+                    if(LOGS_Enabled)std::cout<<"Deleted!\n";
                     return;
                 }
                 if(!buy.empty()) relBegin=buy.begin();
@@ -299,7 +300,7 @@ int main(){
     
 }
 void writeToFile(orderObj* x,int qty,double price){
-	std::cout<<"write to file called for following\n"
+	if(LOGS_Enabled)std::cout<<"write to file called for following\n"
         <<x->orderId<<","
         <<x->clientOrderID<<","
         <<x->inst<<","
@@ -318,7 +319,7 @@ void writeToFile(orderObj* x,int qty,double price){
         <<transac_time()<<"\n";
 
         //<<x->priority;//remove this later
-    std::cout<<"write to file finished!\n";
+    if(LOGS_Enabled)std::cout<<"write to file finished!\n";
 
 }
 
@@ -333,7 +334,7 @@ void writeHeader(){
         <<"Transaction Time\n";
 
         //<<x->priority;//remove this later
-    std::cout<<"Writing header finished!\n";
+    if(LOGS_Enabled)std::cout<<"Writing header finished!\n";
 }
 void initializeInstrumentArray(){
     allInstruments[0]=NULL;
@@ -346,7 +347,7 @@ void initializeInstrumentArray(){
 int initializeIns(int i){
     instrument *temp=new instrument;
     if(temp==NULL){
-        std::cout<<"Error allocating memory for instrument book!\n";
+        if(LOGS_Enabled)std::cout<<"Error allocating memory for instrument book!\n";
         return 1;
     }
     allInstruments[i]=temp;
