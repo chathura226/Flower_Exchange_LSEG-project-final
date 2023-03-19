@@ -1,5 +1,9 @@
 Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
-aa13,ord1,Rose,2,55.00,100,New
-aa14,ord2,Rose,2,45.00,100,New
-aa15,ord3,Rose,1,45.00,100,Fill
-aa14,ord2,Rose,2,45.00,100,Fill
+aa13,ord1,Rose,1,55.00,100,New,20230319-213750.854
+aa14,ord2,Rose,1,65.00,100,New,20230319-213750.856
+aa15,ord3,Rose,2,65.00,100,Pfill,20230319-213750.857
+aa14,ord2,Rose,1,65.00,100,Fill,20230319-213750.857
+aa15,ord3,Rose,2,55.00,100,Pfill,20230319-213750.857
+aa13,ord1,Rose,1,55.00,100,Fill,20230319-213750.857
+aa16,ord4,Rose,1,1.00,100,Fill,20230319-213750.858
+aa15,ord3,Rose,2,1.00,100,Fill,20230319-213750.858

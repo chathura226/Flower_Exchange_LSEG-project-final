@@ -8,7 +8,9 @@
 #include<iomanip>
 #include <string.h>
 #include<regex>
+#include <sstream>  
 #include<vector>
+#include <chrono>
 static int orderNum=0;
 std::ofstream file;
 
@@ -73,7 +75,7 @@ public:
 };
 void writeToFile(orderObj*,int,double);
 void writeHeader();
-
+std::string transac_time();
 void initializeInstrumentArray();
 int initializeIns(int);
 int validateAndCreate(std::string &cliOrd, std::string &inst, int &side,int &qty,double &price);
@@ -100,6 +102,7 @@ public:
         std::cout<<"Accessing "<<name<<" newOrder method\n";
         auto relBegin = (newObj->side==2)  ? buy.begin() : sell.begin();
         if(newObj->side==1&&(sell.empty() || (relBegin->second->price)>newObj->price) ){
+            std::cout<<"Entered case 1: is sell.empty-> "<<sell.empty()<<"\n";
             auto x=buy.find(std::make_pair(newObj->price,newObj->priority));
             if(x!=buy.end()){
                     int i=1;
@@ -110,6 +113,7 @@ public:
             writeToFile(newObj,newObj->qty,newObj->price);
             return;
         }else if(newObj->side==2&&(buy.empty() || (relBegin->second->price)<newObj->price)){
+            std::cout<<"Entered case 1: is sell.empty-> "<<buy.empty()<<"\n";
             auto x=sell.find(std::make_pair(newObj->price,newObj->priority));
             if(x!=sell.end()){
                     int i=1;
@@ -144,17 +148,21 @@ public:
                     std::cout<<"Deleting order "<<itr->clientOrderID<<std::endl;
                     delete itr;
                     std::cout<<"Deleted!\n";
-                    if(!sell.empty()) relBegin=sell.begin();
-                    else break;
                 }
                 if(isFill1){
                     std::cout<<"Deleting order "<<newObj->clientOrderID<<std::endl;
                     delete newObj;
                     std::cout<<"Deleted!\n";
-                    break;
+                    return;
                 }
+                if(!sell.empty()) relBegin=sell.begin();
+                else break;
                 
             }
+            // //when aggressive order is not fully completed
+            buy.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
+            
+
         }else if(newObj->side==2){//this is a sell order and theres a but order for equal or low price
             std::cout<<"inside side==2 but buy is not empty"<<std::endl;
             while(!buy.empty() && (relBegin->second->price)>=newObj->price){
@@ -179,19 +187,21 @@ public:
                     std::cout<<"Deleting order "<<itr->clientOrderID<<std::endl;
                     delete itr;
                     std::cout<<"Deleted!\n";
-                    if(!buy.empty()) relBegin=buy.begin();
-                    else break;
+                    
                 }
 
                 if(isFill1){
                     std::cout<<"Deleting order "<<newObj->clientOrderID<<std::endl;
                     delete newObj;
                     std::cout<<"Deleted!\n";
-                    break;
+                    return;
                 }
-                // if(!buy.empty())relBegin++;
-                // std::cout<<"After increment\n";
+                if(!buy.empty()) relBegin=buy.begin();
+                else break;
             }
+            //when aggressive order is not fully completed
+            sell.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
+           
         }
 
         
@@ -304,7 +314,8 @@ void writeToFile(orderObj* x,int qty,double price){
         <<x->side<<","
         <<price<<","
         <<qty<<","
-        <<x->status<<"\n";
+        <<x->status<<","
+        <<transac_time()<<"\n";
 
         //<<x->priority;//remove this later
     std::cout<<"write to file finished!\n";
@@ -368,4 +379,15 @@ int validateAndCreate(std::string& cliOrd, std::string& inst, int &side,int &qty
     allInstruments[i]->newOrder(temp);
     return 0;
 
+}
+
+
+std::string transac_time() {
+  // milliseconds since the epoch
+  auto now = std::chrono::system_clock::now();
+  std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
+  std::stringstream ss;
+  ss << std::put_time(std::localtime(&now_time_t), "%Y%m%d-%H%M%S");
+  ss << "." << std::setfill('0') << std::setw(3) << std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 1000;
+  return ss.str();
 }
