@@ -4,6 +4,7 @@
 #include<map>
 #include<fstream>
 #include<algorithm>
+#include<iomanip>
 static int orderNum=0;
 std::ofstream file;
 
@@ -23,6 +24,7 @@ struct compareOrder{
 
 class orderObj{
 public:
+    std::string orderId;
     std::string clientOrderID;
     std::string inst;
     int side;
@@ -31,6 +33,7 @@ public:
     int priority;
     std::string status;
     orderObj(std::string& cliOrd, std::string& inst, int &side,int &qty,double &price){
+        orderId="ord"+std::to_string(++orderNum);
         clientOrderID=cliOrd;
         this->inst=inst;
         this->side=side;
@@ -38,7 +41,7 @@ public:
         this->price=price;
         priority=1;
         status="New";
-
+        std::cout<<"New order object created!\n";
         if(cliOrd.size()==0 || inst.size()==0 )status="Rejected";
         else if(inst!="Rose" &&  inst!="Lavender"&& inst!="Lotus"&& inst!="Tulip"&& inst!="Orchid")status="Rejected";
         else if(price<=0 || qty<10 || qty>1000 || qty%10!=0)status="Rejected";
@@ -58,6 +61,9 @@ public:
         std::cout<<"Execute order finished!\n";
         return 0;//return 0 when pfill
         
+    }
+    ~orderObj(){
+        std::cout<<"OrderObj destructor called!\n";
     }
     
 };
@@ -193,13 +199,16 @@ instrument* allInstruments[5];
 int main(){
     initializeInstrumentArray();
     file.open("execution_rep.csv",std::ios_base::app);//to append
-    char cliOrd[7],inst[8];
+    file<<std::fixed<<std::setprecision(2);
+    char cliOrd[8]={'\0'},inst[9]={'\0'};
     int side,qty;
     double price;
 	if (FILE* filePointer = fopen("orders.csv", "r")) {
-        std::cout<<"hi"<<std::endl;
+        
 		while (fscanf(filePointer, "%[^,],%[^,],%d,%d,%lf\n", cliOrd, inst, &side,&qty,&price)==5) {
-            std::cout<<cliOrd<<inst<<side<<qty<<price<<"boohoo"<<std::endl;
+            std::cout<<"read orders: "<<cliOrd<<" "<<inst<<std::endl;
+            //std::cout<<"read order"<<std::endl;
+            std::cout<<"Read folowing details:"<<cliOrd<<" "<<inst<<" "<<side<<" "<<qty<<" "<<price<<std::endl;
             std::string cliOrdString=std::string(cliOrd);
             std::string instString=std::string(inst);
             int temp=validateAndCreate(cliOrdString,instString,side,qty,price);
@@ -215,13 +224,17 @@ int main(){
     
 }
 void writeToFile(orderObj* x,int qty,double price){
-	std::cout<<"write to file called for following\n"<<x->clientOrderID<<","
+	std::cout<<"write to file called for following\n"
+        <<x->orderId<<","
+        <<x->clientOrderID<<","
         <<x->inst<<","
         <<x->side<<","
         <<x->status<<","
         <<qty<<","
         <<price<<"\n";
-    file<<x->clientOrderID<<","
+    
+    file<<x->orderId<<","
+        <<x->clientOrderID<<","
         <<x->inst<<","
         <<x->side<<","
         <<x->status<<","
