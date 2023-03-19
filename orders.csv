@@ -1,5 +1,4 @@
-aa13,dd,1,100,55.00
-aa14,Rose,3,100,65.00
-aa16,Tulip,1,100,-1.00
-,Lavender,2,101,1.00
-aa17,Orchid,1,1000,-1.00
+Client Order ID,Instrument,Side,Price,Quantity
+aa13,Rose,2,100,55.00
+aa14,Rose,2,100,45.00
+aa15,Rose,1,100,45.00

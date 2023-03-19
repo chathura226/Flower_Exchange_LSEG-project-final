@@ -1,10 +1,14 @@
 #include<iostream>
 #include<cstdio>
+#include <stdio.h>
 #include<string>
 #include<map>
 #include<fstream>
 #include<algorithm>
 #include<iomanip>
+#include <string.h>
+#include<regex>
+#include<vector>
 static int orderNum=0;
 std::ofstream file;
 
@@ -68,7 +72,7 @@ public:
     
 };
 void writeToFile(orderObj*,int,double);
-
+void writeHeader();
 
 void initializeInstrumentArray();
 int initializeIns(int);
@@ -196,6 +200,7 @@ public:
 
 instrument* allInstruments[5];
 
+/*
 int main(){
     initializeInstrumentArray();
     file.open("execution_rep.csv",std::ios_base::app);//to append
@@ -204,8 +209,9 @@ int main(){
     int side,qty;
     double price;
 	if (FILE* filePointer = fopen("orders.csv", "r")) {
-        
-		while (fscanf(filePointer, "%[^,],%[^,],%d,%d,%lf\n", cliOrd, inst, &side,&qty,&price)==5) {
+        int n;
+		while (1) {
+            fscanf(filePointer, "%[^,],%[^,],%d,%d,%lf\n", cliOrd, inst, &side,&qty,&price);
             std::cout<<"read orders: "<<cliOrd<<" "<<inst<<std::endl;
             //std::cout<<"read order"<<std::endl;
             std::cout<<"Read folowing details:"<<cliOrd<<" "<<inst<<" "<<side<<" "<<qty<<" "<<price<<std::endl;
@@ -215,6 +221,65 @@ int main(){
             if(temp==1)continue;
 
 		}
+        fclose(filePointer);
+        
+	    file.close();
+	}
+
+    
+    
+}
+*/
+
+// char* field = strtok(line, ",");
+//             nthField=0;
+
+//             while (field) {
+                
+//                 //std::cout<<bb<<" ";
+//                 switch(nthField){
+//                     case 0: cliOrd=std::string(field); break;
+//                     case 1: inst=std::string(field); break;
+//                     case 2: side=atoi(field); break;
+//                     case 3: qty=atoi(field); break;
+//                     case 4: price=atof(field); break;
+
+//                 }
+                
+//                 field = strtok(NULL, ",");
+//                 nthField=(nthField+1)%5;
+                
+//             }
+int main(){
+    initializeInstrumentArray();
+    file.open("execution_rep.csv",std::ios_base::app);//to append
+    file<<std::fixed<<std::setprecision(2);
+    writeHeader();
+    std::string cliOrd,inst;
+    int side,qty;
+    double price;
+	if (FILE* filePointer = fopen("orders.csv", "r")) {
+        char linechar[1024];
+        //int nthField=0;
+        fgets(linechar, 1024, filePointer);//removes header
+		while (fgets(linechar, 1024, filePointer)) {
+            std::string line=std::string(linechar);
+            std::regex field_regex(R"(([^,]*),?)");
+            std::vector<std::string> fields;
+            auto field_begin = std::sregex_iterator(line.begin(), line.end(), field_regex);
+            auto field_end = std::sregex_iterator();
+            for (auto i = field_begin; i != field_end; ++i) {
+                fields.push_back(i->str(1));
+            }
+            cliOrd=fields[0];
+            inst=fields[1];
+            side=stoi(fields[2]);
+            qty=stoi(fields[3]);
+            price=stod(fields[4]);
+
+            int temp=validateAndCreate(cliOrd,inst,side,qty,price);
+            if(temp==1)continue;
+        }
         fclose(filePointer);
         
 	    file.close();
@@ -233,20 +298,32 @@ void writeToFile(orderObj* x,int qty,double price){
         <<qty<<","
         <<price<<"\n";
     
-    file<<x->orderId<<","
-        <<x->clientOrderID<<","
+    file<<x->clientOrderID<<","
+        <<x->orderId<<","
         <<x->inst<<","
         <<x->side<<","
-        <<x->status<<","
+        <<price<<","
         <<qty<<","
-        <<price<<"\n";
+        <<x->status<<"\n";
 
         //<<x->priority;//remove this later
     std::cout<<"write to file finished!\n";
 
 }
 
+void writeHeader(){
+    file<<"Client Order ID,"
+        <<"Order ID,"
+        <<"Instrument,"
+        <<"Side,"
+        <<"Price,"
+        <<"Quantity,"
+        <<"Status,"
+        <<"Transaction Time\n";
 
+        //<<x->priority;//remove this later
+    std::cout<<"Writing header finished!\n";
+}
 void initializeInstrumentArray(){
     allInstruments[0]=NULL;
     allInstruments[1]=NULL;

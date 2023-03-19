@@ -1,3 +1,5 @@
-ord1,aa13,dd,1,Rejected,100,55.00
-ord2,aa14,Rose,3,Rejected,100,65.00
-ord3,aa16,Tulip,1,Rejected,100,-1.00
+Client Order ID,Order ID,Instrument,Side,Price,Quantity,Status,Transaction Time
+aa13,ord1,Rose,2,55.00,100,New
+aa14,ord2,Rose,2,45.00,100,New
+aa15,ord3,Rose,1,45.00,100,Fill
+aa14,ord2,Rose,2,45.00,100,Fill
