@@ -10,14 +10,33 @@
 #include<regex>
 #include <sstream>  
 #include<vector>
+#include<memory>
 #include <chrono>
-#define LOGS_Enabled 1 //to enable my test logs
+#include<unordered_map>
+#define LOGS_Enabled 0//to enable my test logs
 static int orderNum=0;
 std::ofstream file;
 typedef std::pair<double,int> pair;
+double epsilon=0.001;
+// class own_double_less : public std::binary_function<double,double,bool>
+// {
+// public:
+//   own_double_less( double arg_ = 0.001 ) : epsilon(arg_) {}
+//   bool operator()( const double &left, const double &right  ) const
+//   {
+
+//     // you can choose other way to make decision
+//     // (The original version is: return left < right;) 
+//     return (abs(left - right) > epsilon) && (left < right);
+//   }
+//   double epsilon;
+// };
+
 
 struct compareOrder{
     bool operator()(const pair& a,const pair& b){
+
+        
         if(a.first>b.first){
             return true;
         }else if(a.first==b.first){
@@ -25,6 +44,7 @@ struct compareOrder{
                 return true;
             }else return false;
         }else return false;
+        
     }
 };
 
@@ -74,14 +94,14 @@ public:
     }
     
 };
-void printOrderBook(orderObj*);
-void writeToFile(orderObj*,int,double);
+void printOrderBook(std::shared_ptr<orderObj>);
+void writeToFile(std::shared_ptr<orderObj>,int,double);
 void writeHeader();
 std::string transac_time();
 void initializeInstrumentArray();
 int initializeIns(int);
 int validateAndCreate(std::string &cliOrd, std::string &inst, int &side,int &qty,double &price);
-void printfDetails(orderObj* x){
+void printfDetails(std::shared_ptr<orderObj> x){
     if(LOGS_Enabled)std::cout<<"print details of follwing\n"<<x->clientOrderID<<","
         <<x->inst<<","
         <<x->side<<","
@@ -90,7 +110,7 @@ void printfDetails(orderObj* x){
         <<x->price<<"\n";
 }
 
-int minQty(orderObj* x,orderObj*y){
+int minQty(std::shared_ptr<orderObj> x,std::shared_ptr<orderObj>y){
     if(LOGS_Enabled)std::cout<<"minqty called for  "<<x->qty<<" "<<y->qty<<std::endl;
     if(x->qty>y->qty)return y->qty;
     else return x->qty;
@@ -98,46 +118,88 @@ int minQty(orderObj* x,orderObj*y){
 class instrument{
 public:
     std::string name;
-    std::map<pair,orderObj*,compareOrder> buy;//descending order
-    std::map<pair,orderObj*> sell;
-    void newOrder(orderObj* newObj){
+    std::map<const pair,std::shared_ptr<orderObj>,compareOrder> buy;//descending order
+    std::unordered_map<double,std::map<const pair,std::shared_ptr<orderObj>>::iterator> buyHighestPrio;
+    std::map<const pair,std::shared_ptr<orderObj>> sell;
+    std::unordered_map<double,std::map<const pair,std::shared_ptr<orderObj>>::iterator> sellHighestPrio;
+
+
+
+
+    void newOrder(std::shared_ptr<orderObj> newObj){
         if(LOGS_Enabled)std::cout<<"Accessing "<<name<<" newOrder method\n";
         auto relBegin = (newObj->side==2)  ? buy.begin() : sell.begin();
         if(newObj->side==1&&(sell.empty() || (relBegin->second->price)>newObj->price) ){
             if(LOGS_Enabled)std::cout<<"Entered case 1: is sell.empty-> "<<sell.empty()<<" Buy.empty()-> "<<buy.empty()<<"\n";
-            
-            if(!buy.empty()){
-                if(LOGS_Enabled)std::cout<<"inside case 1-> buy is not empty \n";
-                auto x=buy.find(std::make_pair(newObj->price,newObj->priority));
-                if(x!=buy.end()){
-                        if(LOGS_Enabled)std::cout<<"inside case 1-> buy is not empty-> theres element with same price \n";
-                        int i=1;
-                        while((++x)->second->price==newObj->price)i++;
-                        newObj->priority=++i;
+            auto samePrice=buyHighestPrio.find(newObj->price);
+            if(samePrice!=buyHighestPrio.end()){//there are elements with same price
+                auto x=buy.find(std::make_pair(newObj->price,samePrice->second->first.second));//finding the rel elemtn from map with its key's priority num
+                int i=1;
+                if(++x!=buy.end()){
+                    while(x->second->price==newObj->price){
+                        i++;
+                        if(++x==buy.end())break;
+                        }
                 }
+                newObj->priority=++i;
+                buy.insert(x,{std::make_pair(newObj->price,newObj->priority),newObj});
+            }else{//there are no elements with same price. so add the element and ad the reference to Highest Priority map
+            
+                auto y=buy.insert({std::make_pair(newObj->price,newObj->priority),newObj});
+                buyHighestPrio.emplace(newObj->price,y.first);
             }
-            buy.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
             writeToFile(newObj,newObj->qty,newObj->price);
             return;
+            // if(!buy.empty()){
+            //     if(LOGS_Enabled)std::cout<<"inside case 1-> buy is not empty \n";
+            //     if(newObj->price==buy.begin()->second->price)std::cout<<"they are equal\n";
+            //     auto x=buy.find(std::make_pair(newObj->price,newObj->priority));
+            //     if(x!=buy.end()){
+            //             if(LOGS_Enabled)std::cout<<"inside case 1-> buy is not empty-> theres element with same price \n";
+            //             int i=1;
+            //             while((++x)->second->price==newObj->price)i++;
+            //             newObj->priority=++i;
+            //     }
+            // }
+            // buy.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
+            
         }else if(newObj->side==2&&(buy.empty() || (relBegin->second->price)<newObj->price)){
             if(LOGS_Enabled)std::cout<<"Entered case 2: is buy.empty-> "<<buy.empty()<<" sell.empty-> "<<sell.empty()<<"\n";
-            if(!sell.empty()){
-                if(LOGS_Enabled)std::cout<<"inside case 2-> sell is not empty "<<newObj->orderId<<" "<<newObj->price<<" "<<newObj->priority<<"\n";
-                auto x=sell.find(std::make_pair(newObj->price,newObj->priority));
-                if(LOGS_Enabled)std::cout<<"Did i found it: "<<sell.count(std::make_pair(newObj->price,newObj->priority))<<"\n";
-                if(LOGS_Enabled)std::cout<<sell.begin()->second->orderId<<" "<<sell.begin()->second->price<<" "<<sell.begin()->second->priority<<"\n";
-                if(x!=sell.end()){
-                    if(LOGS_Enabled)std::cout<<"inside case 2-> sell is not empty-> theres element with same price \n";
-                    int i=1;
-                    while(++x!=sell.end()){
-                        if(x->second->price==newObj->price)i++;
-                    }
-                    newObj->priority=++i;
+            auto samePrice=sellHighestPrio.find(newObj->price);
+            if(samePrice!=sellHighestPrio.end()){//there are elements with same price
+                auto x=sell.find(std::make_pair(newObj->price,samePrice->second->first.second));//finding the rel elemtn from map with its key's priority num
+                int i=1;
+                if(++x!=sell.end()){
+                    while(x->second->price==newObj->price){
+                        i++;
+                        if(++x==sell.end())break;
+                        }
                 }
+                newObj->priority=++i;
+                sell.insert(x,{std::make_pair(newObj->price,newObj->priority),newObj});
+            }else{//there are no elements with same price. so add the element and ad the reference to Highest Priority map
+                auto y=sell.insert({std::make_pair(newObj->price,newObj->priority),newObj});
+                sellHighestPrio.emplace(newObj->price,y.first);
             }
-            sell.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
             writeToFile(newObj,newObj->qty,newObj->price);
             return;
+            // if(!sell.empty()){
+            //     if(LOGS_Enabled)std::cout<<"inside case 2-> sell is not empty "<<newObj->orderId<<" "<<newObj->price<<" "<<newObj->priority<<"\n";
+            //     auto x=sell.find(std::make_pair(newObj->price,newObj->priority));
+            //     if(LOGS_Enabled)std::cout<<"Did i found it: "<<sell.count(std::make_pair(newObj->price,newObj->priority))<<"\n";
+            //     if(LOGS_Enabled)std::cout<<sell.begin()->second->orderId<<" "<<sell.begin()->second->price<<" "<<sell.begin()->second->priority<<"\n";
+            //     if(x!=sell.end()){
+            //         if(LOGS_Enabled)std::cout<<"inside case 2-> sell is not empty-> theres element with same price \n";
+            //         int i=1;
+            //         while(++x!=sell.end()){
+            //             if(x->second->price==newObj->price)i++;
+            //         }
+            //         newObj->priority=++i;
+            //     }
+            // }
+            // sell.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
+            // writeToFile(newObj,newObj->qty,newObj->price);
+            // return;
         }else if(newObj->side==1){//this is a buy order and theres a sell order for equal or low price
             if(LOGS_Enabled)std::cout<<"inside side==1 but sell is not empty"<<std::endl;
             if(LOGS_Enabled)std::cout<<"Orders inside are "<<newObj->orderId<<" "<<relBegin->second->orderId;
@@ -152,23 +214,30 @@ public:
                 writeToFile(relBegin->second,execQty,relBegin->second->price);
                 
                 if(isFill2){
-                    orderObj* itr=relBegin->second;
+                    std::shared_ptr<orderObj> itr=relBegin->second;
+                    relBegin++;
+                    if(relBegin!=sell.end()){//updating new priority
+                        if(relBegin->second->price==itr->price)sellHighestPrio.emplace(relBegin->second->price,relBegin);
+                        else sellHighestPrio.erase(itr->price);//when next elemt is not same price
+                    }else sellHighestPrio.erase(itr->price);
+
+
                     sell.erase(std::make_pair(itr->price,itr->priority));
-                    if(!sell.empty()){
-                        auto temp=sell.begin();
-                        while(temp->second->price==itr->price){
-                            temp->second->priority--;
-                            if(++temp==sell.end())break;
-                        }
-                    }
-                    if(LOGS_Enabled)std::cout<<"Deleting order "<<itr->clientOrderID<<std::endl;
-                    delete itr;
-                    if(LOGS_Enabled)std::cout<<"Deleted!\n";
+                    // if(!sell.empty()){
+                    //     auto temp=sell.begin();
+                    //     while(temp->second->price==itr->price){
+                    //         temp->second->priority--;
+                    //         if(++temp==sell.end())break;
+                    //     }
+                    // }
+                    //if(LOGS_Enabled)std::cout<<"Deleting order "<<itr->clientOrderID<<std::endl;
+                    //delete itr;
+                    if(LOGS_Enabled)std::cout<<"About to be deleted!\n";
                 }
                 if(isFill1){
-                    if(LOGS_Enabled)std::cout<<"Deleting order "<<newObj->clientOrderID<<std::endl;
-                    delete newObj;
-                    if(LOGS_Enabled)std::cout<<"Deleted!\n";
+                    //if(LOGS_Enabled)std::cout<<"Deleting order "<<newObj->clientOrderID<<std::endl;
+                    //delete newObj;
+                    if(LOGS_Enabled)std::cout<<"about to get deleted\n";
                     return;
                 }
                 if(!sell.empty()) relBegin=sell.begin();
@@ -176,7 +245,9 @@ public:
                 
             }
             // //when aggressive order is not fully completed
-            buy.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
+            // buy.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
+            auto y=buy.insert({std::make_pair(newObj->price,newObj->priority),newObj});
+            buyHighestPrio.emplace(newObj->price,y.first);
             
 
         }else if(newObj->side==2){//this is a sell order and theres a but order for equal or low price
@@ -191,32 +262,40 @@ public:
                 writeToFile(relBegin->second,execQty,relBegin->second->price);
                 
                 if(isFill2){
-                    orderObj* itr=relBegin->second;
+                    std::shared_ptr<orderObj> itr=relBegin->second;
+                    relBegin++;
+                    if(relBegin!=buy.end()){//updating new priority
+                        if(relBegin->second->price==itr->price)buyHighestPrio.emplace(relBegin->second->price,relBegin);
+                        else buyHighestPrio.erase(itr->price);//when next elemt is not same price
+                    }else buyHighestPrio.erase(itr->price);
+
                     buy.erase(std::make_pair(itr->price,itr->priority));
-                    if(!buy.empty()){
-                        auto temp=buy.begin();
-                        while(temp->second->price==itr->price){
-                            temp->second->priority--;
-                            if(++temp==buy.end())break;
-                        }
-                    }
-                    if(LOGS_Enabled)std::cout<<"Deleting order "<<itr->clientOrderID<<std::endl;
-                    delete itr;
-                    if(LOGS_Enabled)std::cout<<"Deleted!\n";
+                    // if(!buy.empty()){
+                    //     auto temp=buy.begin();
+                    //     while(temp->second->price==itr->price){
+                    //         temp->second->priority--;
+                    //         if(++temp==buy.end())break;
+                    //     }
+                    // }
+                    //if(LOGS_Enabled)std::cout<<"Deleting order "<<itr->clientOrderID<<std::endl;
+                    //delete itr;
+                    if(LOGS_Enabled)std::cout<<"About to get deletd!\n";
                     
                 }
 
                 if(isFill1){
-                    if(LOGS_Enabled)std::cout<<"Deleting order "<<newObj->clientOrderID<<std::endl;
-                    delete newObj;
-                    if(LOGS_Enabled)std::cout<<"Deleted!\n";
+                    //if(LOGS_Enabled)std::cout<<"Deleting order "<<newObj->clientOrderID<<std::endl;
+                    //delete newObj;
+                    if(LOGS_Enabled)std::cout<<"About to get deleted!\n";
                     return;
                 }
                 if(!buy.empty()) relBegin=buy.begin();
                 else break;
             }
             //when aggressive order is not fully completed
-            sell.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
+            // sell.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
+            auto y=sell.insert({std::make_pair(newObj->price,newObj->priority),newObj});
+            sellHighestPrio.emplace(newObj->price,y.first);
            
         }
 
@@ -314,7 +393,7 @@ int main(){
     
     
 }
-void writeToFile(orderObj* x,int qty,double price){
+void writeToFile(std::shared_ptr<orderObj> x,int qty,double price){
 	if(LOGS_Enabled)std::cout<<"write to file called for following\n"
         <<x->orderId<<","
         <<x->clientOrderID<<","
@@ -380,10 +459,11 @@ int initializeIns(int i){
 }
 
 int validateAndCreate(std::string& cliOrd, std::string& inst, int &side,int &qty,double &price){
-    orderObj* temp=new orderObj(cliOrd, inst, side,qty,price);
+    std::shared_ptr<orderObj> temp=std::make_shared<orderObj>(cliOrd, inst, side,qty,price);
     if(temp->status=="Rejected"){
         writeToFile(temp,temp->qty,temp->price);
-        delete(temp);
+        //delete(temp);
+        if(LOGS_Enabled)std::cout<<"About to get deletd!\n";
         return 1;
     }
     int i;
@@ -409,7 +489,7 @@ std::string transac_time() {
   ss << "." << std::setfill('0') << std::setw(3) << std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 1000;
   return ss.str();
 }
-void printOrderBook(orderObj *temp){//for test logs
+void printOrderBook(std::shared_ptr<orderObj> temp){//for test logs
     int i;
     if(temp->inst==std::string("Rose"))i=0;
     else if(temp->inst==std::string("Lavender"))i=1;
@@ -425,7 +505,7 @@ void printOrderBook(orderObj *temp){//for test logs
         <<k->second->side<<","
         <<k->second->status<<","
         <<k->second->qty<<","
-        <<k->second->price<<" priority "<<k->second->priority<<"\n";
+        <<k->second->price<<" priority "<<k->second->priority<<" "<<k->first.second<<"\n";
        
     }
     file<<"Sell orders: \n";
@@ -437,7 +517,7 @@ void printOrderBook(orderObj *temp){//for test logs
         <<k->second->side<<","
         <<k->second->status<<","
         <<k->second->qty<<","
-        <<k->second->price<<" priority "<<k->second->priority<<"\n";
+        <<k->second->price<<" priority "<<k->second->priority<<" "<<k->first.second<<"\n";
         
     }
 }
