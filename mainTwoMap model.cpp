@@ -365,10 +365,15 @@ int main(){
     double price;
 	if (FILE* filePointer = fopen("orders.csv", "r")) {
         char linechar[1024];
-        //int nthField=0;
-        fgets(linechar, 1024, filePointer);//removes header
+
+        int fieldOrder[]={0,1,2,3,4};
+        //fgets(linechar, 1024, filePointer);
+        int nLines=0;
 		while (fgets(linechar, 1024, filePointer)) {
             std::string line=std::string(linechar);
+            if (!line.empty() && line[line.size() - 1] == '\n') {
+                line.erase(line.size() - 1);
+            }
             std::regex field_regex(R"(([^,]*),?)");
             std::vector<std::string> fields;
             auto field_begin = std::sregex_iterator(line.begin(), line.end(), field_regex);
@@ -376,11 +381,29 @@ int main(){
             for (auto i = field_begin; i != field_end; ++i) {
                 fields.push_back(i->str(1));
             }
-            cliOrd=fields[0];
-            inst=fields[1];
-            side=stoi(fields[2]);
-            qty=stoi(fields[3]);
-            price=stod(fields[4]);
+            if(nLines==0){//first line of the file-headers
+                for(int i=0;i<5;i++){
+                    std::cout<<"dd"<<fields[i]<<"fff\n";
+                    if(fields[i]=="Client Order ID"||fields[i]=="Client Order ID\n") fieldOrder[0]=i;
+                    else if(fields[i]=="Instrument"||fields[i]=="Instrument\n") fieldOrder[1]=i;
+                    else if(fields[i]=="Side"||fields[i]=="Side\n") fieldOrder[2]=i;
+                    else if(fields[i]=="Price"||fields[i]=="Price\n") fieldOrder[3]=i;
+                    else if(fields[i]=="Quantity"||fields[i]=="Quantity\n") fieldOrder[4]=i;
+                    else {
+                        std::cout<<i<<"Invalid header name found!\n";
+                        return 1;
+                    }
+                }
+                nLines++;
+                continue;               
+            }
+            cliOrd=fields[fieldOrder[0]];
+            inst=fields[fieldOrder[1]];
+            side=stoi(fields[fieldOrder[2]]);
+            qty=stoi(fields[fieldOrder[3]]);
+            price=stod(fields[fieldOrder[4]]);
+
+            nLines++;
 
             int temp=validateAndCreate(cliOrd,inst,side,qty,price);
             if(temp==1)continue;
