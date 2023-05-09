@@ -115,14 +115,19 @@ public:
     std::unordered_map<double,std::map<const pair,std::shared_ptr<orderObj>>::iterator> buyHighestPrio;
     std::map<const pair,std::shared_ptr<orderObj>> sell;
     std::unordered_map<double,std::map<const pair,std::shared_ptr<orderObj>>::iterator> sellHighestPrio;
-    // std::map<const pair,std::shared_ptr<orderObj>>::iterator buyBegin;
-    // std::map<const pair,std::shared_ptr<orderObj>>::iterator sellBegin;
+    std::map<const pair,std::shared_ptr<orderObj>>::iterator buyBegin;
+    std::map<const pair,std::shared_ptr<orderObj>>::iterator sellBegin;
+    instrument();
     void newOrder(std::shared_ptr<orderObj> newObj);
 };
 
+instrument::instrument(){
+    buyBegin=buy.begin();
+    sellBegin=sell.begin();
+}
 void instrument::newOrder(std::shared_ptr<orderObj> newObj){
     if(LOGS_Enabled)std::cout<<"Accessing "<<name<<" newOrder method\n";
-    auto relBegin = (newObj->side==2)  ? buy.begin() : sell.begin();
+    auto relBegin = (newObj->side==2)  ? buyBegin : sellBegin;
     if(newObj->side==1&&(sell.empty() || (relBegin->second->price)>newObj->price) ){//this is a buy order and sell is empty or sell orders are higher
         if(LOGS_Enabled)std::cout<<"Entered case 1: is sell.empty-> "<<sell.empty()<<" Buy.empty()-> "<<buy.empty()<<"\n";
         auto samePrice=buyHighestPrio.find(newObj->price);
@@ -138,9 +143,11 @@ void instrument::newOrder(std::shared_ptr<orderObj> newObj){
             newObj->priority=++lastPriority;
             buy.insert(--x,{std::make_pair(newObj->price,newObj->priority),newObj});
         }else{//there are no elements with same price. so add the element and ad the reference to Highest Priority map
-        
+            bool isBuyEmpty=buy.empty();
             auto y=buy.insert({std::make_pair(newObj->price,newObj->priority),newObj});
             buyHighestPrio.emplace(newObj->price,y.first);
+            if(isBuyEmpty)buyBegin=y.first;
+            else if(newObj->price>buyBegin->second->price)buyBegin=y.first;//if new buy order has higher price, update map begin
         }
         writeToFile(newObj,newObj->qty,newObj->price);
         return;
@@ -160,8 +167,11 @@ void instrument::newOrder(std::shared_ptr<orderObj> newObj){
             sell.insert(--x,{std::make_pair(newObj->price,newObj->priority),newObj});
 
         }else{//there are no elements with same price. so add the element and ad the reference to Highest Priority map
+            bool isSellEmpty=sell.empty();
             auto y=sell.insert({std::make_pair(newObj->price,newObj->priority),newObj});
             sellHighestPrio.emplace(newObj->price,y.first);
+            if(isSellEmpty)sellBegin=y.first;
+            else if (newObj->price<sellBegin->second->price)sellBegin=y.first;//if new sell order has lower price, update map begin
         }
         writeToFile(newObj,newObj->qty,newObj->price);
         return;
@@ -181,6 +191,7 @@ void instrument::newOrder(std::shared_ptr<orderObj> newObj){
             if(isFill2){
                 std::shared_ptr<orderObj> itr=relBegin->second;
                 relBegin++;
+                sellBegin=relBegin;
                 if(relBegin!=sell.end()){//updating new priority
                     if(relBegin->second->price==itr->price)sellHighestPrio[itr->price]=relBegin;
                     else sellHighestPrio.erase(itr->price);//when next elemt is not same price
@@ -197,13 +208,16 @@ void instrument::newOrder(std::shared_ptr<orderObj> newObj){
                 if(LOGS_Enabled)std::cout<<"about to get deleted\n";
                 return;
             }
-            if(!sell.empty()) relBegin=sell.begin();
+            if(!sell.empty()) relBegin=sellBegin;
             else break;
             
         }
         // //when aggressive order is not fully completed
         // buy.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
+        bool isBuyEmpty=buy.empty();
         auto y=buy.insert({std::make_pair(newObj->price,newObj->priority),newObj});
+        if(isBuyEmpty)buyBegin=y.first;
+        else if(newObj->price>buyBegin->second->price)buyBegin=y.first;
         buyHighestPrio.emplace(newObj->price,y.first);
         
 
@@ -221,6 +235,7 @@ void instrument::newOrder(std::shared_ptr<orderObj> newObj){
             if(isFill2){
                 std::shared_ptr<orderObj> itr=relBegin->second;
                 relBegin++;
+                buyBegin=relBegin;
                 if(relBegin!=buy.end()){//updating new priority
                     if(relBegin->second->price==itr->price)buyHighestPrio[itr->price]=relBegin;
                     else buyHighestPrio.erase(itr->price);//when next elemt is not same price
@@ -238,12 +253,15 @@ void instrument::newOrder(std::shared_ptr<orderObj> newObj){
                 if(LOGS_Enabled)std::cout<<"About to get deleted!\n";
                 return;
             }
-            if(!buy.empty()) relBegin=buy.begin();
+            if(!buy.empty()) relBegin=buyBegin;
             else break;
         }
         //when aggressive order is not fully completed
         // sell.emplace(std::make_pair(newObj->price,newObj->priority),newObj);
+        bool isSellEmpty=sell.empty();
         auto y=sell.insert({std::make_pair(newObj->price,newObj->priority),newObj});
+        if(isSellEmpty)sellBegin=y.first;
+        else if(newObj->price<sellBegin->second->price)sellBegin=y.first;
         sellHighestPrio.emplace(newObj->price,y.first);   
     }    
 }
