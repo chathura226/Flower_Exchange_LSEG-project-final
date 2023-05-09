@@ -267,6 +267,7 @@ void instrument::newOrder(std::shared_ptr<orderObj> newObj){
 }
 
 
+
 instrument* allInstruments[5];
 
 int main(){
