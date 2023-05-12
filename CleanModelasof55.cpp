@@ -20,7 +20,7 @@ typedef std::pair<double,int> pair;
 double epsilon=0.001;
 
 struct compareOrder{
-    bool operator()(const pair& a,const pair& b){
+    bool operator()(const pair& a,const pair& b) const {
 
         
         if(a.first>b.first){
@@ -54,6 +54,196 @@ public:
 };
 
 
+class instrument{
+public:
+    std::string name;
+    std::map<const pair,std::shared_ptr<orderObj>,compareOrder> buy;//descending order
+    std::unordered_map<double,std::map<const pair,std::shared_ptr<orderObj>>::iterator> buyHighestPrio;
+    std::map<const pair,std::shared_ptr<orderObj>> sell;
+    std::unordered_map<double,std::map<const pair,std::shared_ptr<orderObj>>::iterator> sellHighestPrio;
+    std::map<const pair,std::shared_ptr<orderObj>>::iterator buyBegin;
+    std::map<const pair,std::shared_ptr<orderObj>>::iterator sellBegin;
+    instrument();
+    void newOrder(std::shared_ptr<orderObj> newObj);
+};
+
+void printOrderBook(std::shared_ptr<orderObj>);
+void writeToFile(std::shared_ptr<orderObj>,int,double);
+void writeHeader();
+std::string transac_time();
+void initializeInstrumentArray();
+int initializeIns(int);
+int validateAndCreate(std::string &cliOrd, std::string &inst, int &side,int &qty,double &price);
+void printfDetails(std::shared_ptr<orderObj> x);//for test logs
+int minQty(std::shared_ptr<orderObj> x,std::shared_ptr<orderObj>y);//compare qtys and find the correct qty
+
+
+instrument* allInstruments[5];//pointer array for order books
+
+int main(){
+    initializeInstrumentArray();
+    file.open("execution_rep.csv",std::ios_base::app);//to append
+    file<<std::fixed<<std::setprecision(2);
+    writeHeader();
+    std::string cliOrd,inst;
+    int side,qty;
+    double price;
+	if (FILE* filePointer = fopen("orders.csv", "r")) {
+        char linechar[1024];
+
+        int fieldOrder[]={0,1,2,3,4};
+        int nLines=0;
+		while (fgets(linechar, 1024, filePointer)) {
+            std::string line=std::string(linechar);
+            if (!line.empty() && line[line.size() - 1] == '\n') {
+                line.erase(line.size() - 1);
+            }
+            std::regex field_regex(R"(([^,]*),?)");
+            std::vector<std::string> fields;
+            auto field_begin = std::sregex_iterator(line.begin(), line.end(), field_regex);
+            auto field_end = std::sregex_iterator();
+            for (auto i = field_begin; i != field_end; ++i) {
+                fields.push_back(i->str(1));
+            }
+            if(nLines==0){//first line of the file-headers
+                for(int i=0;i<5;i++){
+                    std::cout<<"dd"<<fields[i]<<"fff\n";
+                    if(fields[i]=="Client Order ID"||fields[i]=="Client Order ID\n") fieldOrder[0]=i;
+                    else if(fields[i]=="Instrument"||fields[i]=="Instrument\n") fieldOrder[1]=i;
+                    else if(fields[i]=="Side"||fields[i]=="Side\n") fieldOrder[2]=i;
+                    else if(fields[i]=="Price"||fields[i]=="Price\n") fieldOrder[3]=i;
+                    else if(fields[i]=="Quantity"||fields[i]=="Quantity\n") fieldOrder[4]=i;
+                    else {
+                        std::cout<<i<<"Invalid header name found!\n";
+                        return 1;
+                    }
+                }
+                nLines++;
+                continue;               
+            }
+            cliOrd=fields[fieldOrder[0]];
+            inst=fields[fieldOrder[1]];
+            side=stoi(fields[fieldOrder[2]]);
+            qty=stoi(fields[fieldOrder[3]]);
+            price=stod(fields[fieldOrder[4]]);
+
+            nLines++;
+
+            int temp=validateAndCreate(cliOrd,inst,side,qty,price);
+            if(temp==1)continue;
+        }
+        fclose(filePointer);
+        
+	    file.close();
+	}
+
+    
+    
+}
+
+
+void writeToFile(std::shared_ptr<orderObj> x,int qty,double price){
+	if(LOGS_Enabled)std::cout<<"write to file called for following\n"
+        <<x->orderId<<","
+        <<x->clientOrderID<<","
+        <<x->inst<<","
+        <<x->side<<","
+        <<x->status<<","
+        <<qty<<","
+        <<price<<" priority "<<x->priority<<"\n";
+    
+    file<<x->clientOrderID<<","
+        <<x->orderId<<","
+        <<x->inst<<","
+        <<x->side<<","
+        <<price<<","
+        <<qty<<","
+        <<x->status<<","
+        <<transac_time();
+    if(LOGS_Enabled)file<<" "<<x->priority;
+    file<<"\n";
+    if(LOGS_Enabled)printOrderBook(x);
+    if(LOGS_Enabled)std::cout<<"write to file finished!\n";
+
+}
+
+void writeHeader(){
+    file<<"Client Order ID,"
+        <<"Order ID,"
+        <<"Instrument,"
+        <<"Side,"
+        <<"Price,"
+        <<"Quantity,"
+        <<"Status,"
+        <<"Transaction Time\n";
+    if(LOGS_Enabled)std::cout<<"Writing header finished!\n";
+}
+void initializeInstrumentArray(){
+    allInstruments[0]=NULL;
+    allInstruments[1]=NULL;
+    allInstruments[2]=NULL;
+    allInstruments[3]=NULL;
+    allInstruments[4]=NULL;
+}
+
+int initializeIns(int i){
+    instrument *temp=new instrument;
+    if(temp==NULL){
+        if(LOGS_Enabled)std::cout<<"Error allocating memory for instrument book!\n";
+        return 1;
+    }
+    allInstruments[i]=temp;
+    switch(i){
+        case 0: temp->name="Rose"; std::cout<<"Initialized the book for Rose\n"; break;
+        case 1: temp->name="Lavender";std::cout<<"Initialized the book for Lavender\n"; break;
+        case 2: temp->name="Lotus";std::cout<<"Initialized the book for Lotus\n"; break;
+        case 3: temp->name="Tulip";std::cout<<"Initialized the book for Tulip\n"; break;
+        case 4: temp->name="Orchid";std::cout<<"Initialized the book for Orchid\n"; break;
+    }
+    return 0;
+
+}
+
+int validateAndCreate(std::string& cliOrd, std::string& inst, int &side,int &qty,double &price){
+    std::shared_ptr<orderObj> temp=std::make_shared<orderObj>(cliOrd, inst, side,qty,price);
+    if(temp->status=="Rejected"){
+        writeToFile(temp,temp->qty,temp->price);
+        //delete(temp);
+        if(LOGS_Enabled)std::cout<<"About to get deletd!\n";
+        return 1;
+    }
+    int i;
+    if(temp->inst==std::string("Rose"))i=0;
+    else if(temp->inst==std::string("Lavender"))i=1;
+    else if(temp->inst==std::string("Lotus"))i=2;
+    else if(temp->inst==std::string("Tulip"))i=3;
+    else if(temp->inst==std::string("Orchid"))i=4;
+    
+    if(allInstruments[i]==NULL)initializeIns(i);
+    allInstruments[i]->newOrder(temp);
+    return 0;
+
+}
+
+
+std::string transac_time() {
+  // milliseconds since the epoch
+  auto now = std::chrono::system_clock::now();
+  std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
+  std::stringstream ss;
+  ss << std::put_time(std::localtime(&now_time_t), "%Y%m%d-%H%M%S");
+  ss << "." << std::setfill('0') << std::setw(3) << std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count()%1000;
+  return ss.str();
+}
+
+int minQty(std::shared_ptr<orderObj> x,std::shared_ptr<orderObj>y){
+    if(LOGS_Enabled)std::cout<<"minqty called for  "<<x->qty<<" "<<y->qty<<std::endl;
+    if(x->qty>y->qty)return y->qty;
+    else return x->qty;
+}
+
+//OrderObj member functions
+
 orderObj::orderObj(std::string& cliOrd, std::string& inst, int &side,int &qty,double &price){
         if(LOGS_Enabled)std::cout<<"orderObj constructor called for cliorder num "<<cliOrd<<"\n";
         orderId="ord"+std::to_string(++orderNum);
@@ -84,16 +274,44 @@ int orderObj::executeQty(int qty){
         if(LOGS_Enabled)std::cout<<"Execute order finished!\n";
         return 0;//return 0 when pfill
         
+}
+
+
+// For test logs.................
+
+void printOrderBook(std::shared_ptr<orderObj> temp){
+    int i;
+    if(temp->inst==std::string("Rose"))i=0;
+    else if(temp->inst==std::string("Lavender"))i=1;
+    else if(temp->inst==std::string("Lotus"))i=2;
+    else if(temp->inst==std::string("Tulip"))i=3;
+    else if(temp->inst==std::string("Orchid"))i=4;
+    file<<"Buy orders: \n";
+    for(auto k=allInstruments[i]->buy.begin();k!=allInstruments[i]->buy.end();k++){
+        file<<"\t"
+        <<k->second->orderId<<","
+        <<k->second->clientOrderID<<","
+        <<k->second->inst<<","
+        <<k->second->side<<","
+        <<k->second->status<<","
+        <<k->second->qty<<","
+        <<k->second->price<<" priority "<<k->second->priority<<" "<<k->first.second<<"\n";
+       
     }
+    file<<"Sell orders: \n";
+    for(auto k=allInstruments[i]->sell.begin();k!=allInstruments[i]->sell.end();k++){
+        file<<"\t"
+        <<k->second->orderId<<","
+        <<k->second->clientOrderID<<","
+        <<k->second->inst<<","
+        <<k->second->side<<","
+        <<k->second->status<<","
+        <<k->second->qty<<","
+        <<k->second->price<<" priority "<<k->second->priority<<" "<<k->first.second<<"\n";
+        
+    }
+}
 
-
-void printOrderBook(std::shared_ptr<orderObj>);
-void writeToFile(std::shared_ptr<orderObj>,int,double);
-void writeHeader();
-std::string transac_time();
-void initializeInstrumentArray();
-int initializeIns(int);
-int validateAndCreate(std::string &cliOrd, std::string &inst, int &side,int &qty,double &price);
 void printfDetails(std::shared_ptr<orderObj> x){
     if(LOGS_Enabled)std::cout<<"print details of follwing\n"<<x->clientOrderID<<","
         <<x->inst<<","
@@ -103,28 +321,15 @@ void printfDetails(std::shared_ptr<orderObj> x){
         <<x->price<<"\n";
 }
 
-int minQty(std::shared_ptr<orderObj> x,std::shared_ptr<orderObj>y){
-    if(LOGS_Enabled)std::cout<<"minqty called for  "<<x->qty<<" "<<y->qty<<std::endl;
-    if(x->qty>y->qty)return y->qty;
-    else return x->qty;
-}
-class instrument{
-public:
-    std::string name;
-    std::map<const pair,std::shared_ptr<orderObj>,compareOrder> buy;//descending order
-    std::unordered_map<double,std::map<const pair,std::shared_ptr<orderObj>>::iterator> buyHighestPrio;
-    std::map<const pair,std::shared_ptr<orderObj>> sell;
-    std::unordered_map<double,std::map<const pair,std::shared_ptr<orderObj>>::iterator> sellHighestPrio;
-    std::map<const pair,std::shared_ptr<orderObj>>::iterator buyBegin;
-    std::map<const pair,std::shared_ptr<orderObj>>::iterator sellBegin;
-    instrument();
-    void newOrder(std::shared_ptr<orderObj> newObj);
-};
+
+//Instrument member functions..........
+
 
 instrument::instrument(){
     buyBegin=buy.begin();
     sellBegin=sell.begin();
 }
+
 void instrument::newOrder(std::shared_ptr<orderObj> newObj){
     if(LOGS_Enabled)std::cout<<"Accessing "<<name<<" newOrder method\n";
     auto relBegin = (newObj->side==2)  ? buyBegin : sellBegin;
@@ -267,191 +472,3 @@ void instrument::newOrder(std::shared_ptr<orderObj> newObj){
 }
 
 
-
-instrument* allInstruments[5];
-
-int main(){
-    initializeInstrumentArray();
-    file.open("execution_rep.csv",std::ios_base::app);//to append
-    file<<std::fixed<<std::setprecision(2);
-    writeHeader();
-    std::string cliOrd,inst;
-    int side,qty;
-    double price;
-	if (FILE* filePointer = fopen("orders.csv", "r")) {
-        char linechar[1024];
-
-        int fieldOrder[]={0,1,2,3,4};
-        int nLines=0;
-		while (fgets(linechar, 1024, filePointer)) {
-            std::string line=std::string(linechar);
-            if (!line.empty() && line[line.size() - 1] == '\n') {
-                line.erase(line.size() - 1);
-            }
-            std::regex field_regex(R"(([^,]*),?)");
-            std::vector<std::string> fields;
-            auto field_begin = std::sregex_iterator(line.begin(), line.end(), field_regex);
-            auto field_end = std::sregex_iterator();
-            for (auto i = field_begin; i != field_end; ++i) {
-                fields.push_back(i->str(1));
-            }
-            if(nLines==0){//first line of the file-headers
-                for(int i=0;i<5;i++){
-                    std::cout<<"dd"<<fields[i]<<"fff\n";
-                    if(fields[i]=="Client Order ID"||fields[i]=="Client Order ID\n") fieldOrder[0]=i;
-                    else if(fields[i]=="Instrument"||fields[i]=="Instrument\n") fieldOrder[1]=i;
-                    else if(fields[i]=="Side"||fields[i]=="Side\n") fieldOrder[2]=i;
-                    else if(fields[i]=="Price"||fields[i]=="Price\n") fieldOrder[3]=i;
-                    else if(fields[i]=="Quantity"||fields[i]=="Quantity\n") fieldOrder[4]=i;
-                    else {
-                        std::cout<<i<<"Invalid header name found!\n";
-                        return 1;
-                    }
-                }
-                nLines++;
-                continue;               
-            }
-            cliOrd=fields[fieldOrder[0]];
-            inst=fields[fieldOrder[1]];
-            side=stoi(fields[fieldOrder[2]]);
-            qty=stoi(fields[fieldOrder[3]]);
-            price=stod(fields[fieldOrder[4]]);
-
-            nLines++;
-
-            int temp=validateAndCreate(cliOrd,inst,side,qty,price);
-            if(temp==1)continue;
-        }
-        fclose(filePointer);
-        
-	    file.close();
-	}
-
-    
-    
-}
-void writeToFile(std::shared_ptr<orderObj> x,int qty,double price){
-	if(LOGS_Enabled)std::cout<<"write to file called for following\n"
-        <<x->orderId<<","
-        <<x->clientOrderID<<","
-        <<x->inst<<","
-        <<x->side<<","
-        <<x->status<<","
-        <<qty<<","
-        <<price<<" priority "<<x->priority<<"\n";
-    
-    file<<x->clientOrderID<<","
-        <<x->orderId<<","
-        <<x->inst<<","
-        <<x->side<<","
-        <<price<<","
-        <<qty<<","
-        <<x->status<<","
-        <<transac_time();
-    if(LOGS_Enabled)file<<" "<<x->priority;
-    file<<"\n";
-    if(LOGS_Enabled)printOrderBook(x);
-    if(LOGS_Enabled)std::cout<<"write to file finished!\n";
-
-}
-
-void writeHeader(){
-    file<<"Client Order ID,"
-        <<"Order ID,"
-        <<"Instrument,"
-        <<"Side,"
-        <<"Price,"
-        <<"Quantity,"
-        <<"Status,"
-        <<"Transaction Time\n";
-    if(LOGS_Enabled)std::cout<<"Writing header finished!\n";
-}
-void initializeInstrumentArray(){
-    allInstruments[0]=NULL;
-    allInstruments[1]=NULL;
-    allInstruments[2]=NULL;
-    allInstruments[3]=NULL;
-    allInstruments[4]=NULL;
-}
-
-int initializeIns(int i){
-    instrument *temp=new instrument;
-    if(temp==NULL){
-        if(LOGS_Enabled)std::cout<<"Error allocating memory for instrument book!\n";
-        return 1;
-    }
-    allInstruments[i]=temp;
-    switch(i){
-        case 0: temp->name="Rose"; std::cout<<"Initialized the book for Rose\n"; break;
-        case 1: temp->name="Lavender";std::cout<<"Initialized the book for Lavender\n"; break;
-        case 2: temp->name="Lotus";std::cout<<"Initialized the book for Lotus\n"; break;
-        case 3: temp->name="Tulip";std::cout<<"Initialized the book for Tulip\n"; break;
-        case 4: temp->name="Orchid";std::cout<<"Initialized the book for Orchid\n"; break;
-    }
-    return 0;
-
-}
-
-int validateAndCreate(std::string& cliOrd, std::string& inst, int &side,int &qty,double &price){
-    std::shared_ptr<orderObj> temp=std::make_shared<orderObj>(cliOrd, inst, side,qty,price);
-    if(temp->status=="Rejected"){
-        writeToFile(temp,temp->qty,temp->price);
-        //delete(temp);
-        if(LOGS_Enabled)std::cout<<"About to get deletd!\n";
-        return 1;
-    }
-    int i;
-    if(temp->inst==std::string("Rose"))i=0;
-    else if(temp->inst==std::string("Lavender"))i=1;
-    else if(temp->inst==std::string("Lotus"))i=2;
-    else if(temp->inst==std::string("Tulip"))i=3;
-    else if(temp->inst==std::string("Orchid"))i=4;
-    
-    if(allInstruments[i]==NULL)initializeIns(i);
-    allInstruments[i]->newOrder(temp);
-    return 0;
-
-}
-
-
-std::string transac_time() {
-  // milliseconds since the epoch
-  auto now = std::chrono::system_clock::now();
-  std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
-  std::stringstream ss;
-  ss << std::put_time(std::localtime(&now_time_t), "%Y%m%d-%H%M%S");
-  ss << "." << std::setfill('0') << std::setw(3) << std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 1000;
-  return ss.str();
-}
-void printOrderBook(std::shared_ptr<orderObj> temp){//for test logs
-    int i;
-    if(temp->inst==std::string("Rose"))i=0;
-    else if(temp->inst==std::string("Lavender"))i=1;
-    else if(temp->inst==std::string("Lotus"))i=2;
-    else if(temp->inst==std::string("Tulip"))i=3;
-    else if(temp->inst==std::string("Orchid"))i=4;
-    file<<"Buy orders: \n";
-    for(auto k=allInstruments[i]->buy.begin();k!=allInstruments[i]->buy.end();k++){
-        file<<"\t"
-        <<k->second->orderId<<","
-        <<k->second->clientOrderID<<","
-        <<k->second->inst<<","
-        <<k->second->side<<","
-        <<k->second->status<<","
-        <<k->second->qty<<","
-        <<k->second->price<<" priority "<<k->second->priority<<" "<<k->first.second<<"\n";
-       
-    }
-    file<<"Sell orders: \n";
-    for(auto k=allInstruments[i]->sell.begin();k!=allInstruments[i]->sell.end();k++){
-        file<<"\t"
-        <<k->second->orderId<<","
-        <<k->second->clientOrderID<<","
-        <<k->second->inst<<","
-        <<k->second->side<<","
-        <<k->second->status<<","
-        <<k->second->qty<<","
-        <<k->second->price<<" priority "<<k->second->priority<<" "<<k->first.second<<"\n";
-        
-    }
-}
