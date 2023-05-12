@@ -20,7 +20,7 @@ typedef std::pair<double,int> pair;
 double epsilon=0.001;
 
 struct compareOrder{
-    bool operator()(const pair& a,const pair& b){
+    bool operator()(const pair& a,const pair& b) const {
 
         
         if(a.first>b.first){
@@ -225,13 +225,14 @@ int validateAndCreate(std::string& cliOrd, std::string& inst, int &side,int &qty
 
 }
 
+
 std::string transac_time() {
   // milliseconds since the epoch
   auto now = std::chrono::system_clock::now();
   std::time_t now_time_t = std::chrono::system_clock::to_time_t(now);
   std::stringstream ss;
   ss << std::put_time(std::localtime(&now_time_t), "%Y%m%d-%H%M%S");
-  ss << "." << std::setfill('0') << std::setw(3) << std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 1000;
+  ss << "." << std::setfill('0') << std::setw(3) << std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count()%1000;
   return ss.str();
 }
 
