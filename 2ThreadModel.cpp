@@ -13,6 +13,7 @@
 #include<memory>
 #include <chrono>
 #include<unordered_map>
+#include <deque>
 #include<queue>
 #include<mutex>
 #define LOGS_Enabled 0//to enable my test logs
@@ -37,7 +38,7 @@ struct bufOrder{
         price=e;
     }
 };
-std::queue<bufOrder> buffer;
+std::deque<bufOrder> buffer;
 
 
 
@@ -146,7 +147,7 @@ int readFile(){
                 continue;
             }
            mtx.lock();
-            buffer.push(bufOrder(fields[fieldOrder[0]],fields[fieldOrder[1]],stoi(fields[fieldOrder[2]]),stoi(fields[fieldOrder[3]]),stod(fields[fieldOrder[4]])));
+            buffer.push_back(bufOrder(fields[fieldOrder[0]],fields[fieldOrder[1]],stoi(fields[fieldOrder[2]]),stoi(fields[fieldOrder[3]]),stod(fields[fieldOrder[4]])));
             mtx.unlock();
             nLines++;
 
@@ -162,7 +163,7 @@ void driveLogic(){
         if (!buffer.empty()) {
             bufOrder temp(buffer.front());
             mtx.lock();
-            buffer.pop();
+            buffer.pop_front();
             mtx.unlock();
             validateAndCreate(temp.cliOrd, temp.inst, temp.side, temp.qty, temp.price);
         }else continue;
