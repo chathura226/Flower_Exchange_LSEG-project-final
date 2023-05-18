@@ -14,7 +14,7 @@
 #include<deque>
 #include <chrono>
 #include<unordered_map>
-#define LOGS_Enabled 0//to enable my test logs
+#define LOGS_Enabled 1//to enable my test logs
 
 static int orderNum=0;
 std::ofstream file;
@@ -30,7 +30,6 @@ public:
     int side;
     double price;
     int qty;
-    int priority;
     std::string status;
     orderObj();//define later
     orderObj(std::string& cliOrd, std::string& inst, int &side,int &qty,double &price);
@@ -138,7 +137,7 @@ void writeToFile(std::shared_ptr<orderObj> x,int qty,double price){
         <<x->side<<","
         <<x->status<<","
         <<qty<<","
-        <<price<<" priority "<<x->priority<<"\n";
+        <<price<<"\n";
     
     file<<x->clientOrderID<<","
         <<x->orderId<<","
@@ -147,10 +146,8 @@ void writeToFile(std::shared_ptr<orderObj> x,int qty,double price){
         <<price<<","
         <<qty<<","
         <<x->status<<","
-        <<transac_time();
-    if(LOGS_Enabled)file<<" "<<x->priority;
-    file<<"\n";
-    // if(LOGS_Enabled)printOrderBook(x);
+        <<transac_time()<<"\n";
+   
     if(LOGS_Enabled)std::cout<<"write to file finished!\n";
 
 }
@@ -243,7 +240,6 @@ orderObj::orderObj(std::string& cliOrd, std::string& inst, int &side,int &qty,do
         this->side=side;
         this->qty=qty;
         this->price=price;
-        priority=1;
         status="New";
         if(LOGS_Enabled)std::cout<<"New order object created!\n";
         if(cliOrd.size()==0 || inst.size()==0 )status="Rejected";
@@ -298,11 +294,12 @@ void instrument::newOrder(std::shared_ptr<orderObj> newObj){
         if(LOGS_Enabled)std::cout<<"Entered case 1: is sell.empty-> "<<sell.empty()<<" Buy.empty()-> "<<buy.empty()<<"\n";
         auto samePrice=buyHash.find(price);
         if(samePrice!=buyHash.end()){//there are elements with same price
-            auto x=samePrice->second;
-            x.push_back(newObj);
+            if(LOGS_Enabled)std::cout<<"There are elements with same price\n";
+            if(LOGS_Enabled)std::cout<<"deque size: "<<samePrice->second.size()<<"\n";
+            samePrice->second.push_back(newObj);
           
         }else{//there are no elements with same price. so add the element and ad the reference to Highest Priority map
-
+            if(LOGS_Enabled)std::cout<<"There are no elements with same price\n";
             bool isBuyEmpty=buy.empty();
             auto y=buy.insert({price,price});
             buyHash[price].push_back(newObj);
@@ -316,9 +313,9 @@ void instrument::newOrder(std::shared_ptr<orderObj> newObj){
         if(LOGS_Enabled)std::cout<<"Entered case 2: is buy.empty-> "<<buy.empty()<<" sell.empty-> "<<sell.empty()<<"\n";
         auto samePrice=sellHash.find(price);
         if(samePrice!=sellHash.end()){//there are elements with same price
-            auto x=samePrice->second;
-            x.push_back(newObj);
-
+            if(LOGS_Enabled)std::cout<<"There are elements with same price\n";
+            if(LOGS_Enabled)std::cout<<"deque size: "<<samePrice->second.size()<<"\n";
+            samePrice->second.push_back(newObj);
         }else{//there are no elements with same price. so add the element and ad the reference to Highest Priority map
             bool isSellEmpty=sell.empty();
             auto y=sell.insert({price,price});
@@ -364,8 +361,7 @@ void instrument::newOrder(std::shared_ptr<orderObj> newObj){
             if(!sell.empty()) {
                 relBegin=sellBegin;
                 relBeginPrice=relBegin->second;
-            }
-            else break;
+            }else break;
             
         }
         // //when aggressive order is not fully completed->add to hash map and tree 
@@ -394,8 +390,10 @@ void instrument::newOrder(std::shared_ptr<orderObj> newObj){
             writeToFile(relObj,execQty,relBeginPrice);
         
             if(isFill2){//if relevent object from the orderbook fully executed
+            
                 buyHash[relBeginPrice].pop_front();
                 if(buyHash[relBeginPrice].empty()){//queue is empty->so delete it from tree and hash map
+                
                     relBegin++;
                     buyBegin=relBegin;//update new begining of tree
                     buyHash.erase(relBeginPrice);
