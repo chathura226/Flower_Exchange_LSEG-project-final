@@ -15,14 +15,17 @@
 #include <chrono>
 #include<mutex>
 #include<unordered_map>
+#include<condition_variable>
+#include<boost/circular_buffer.hpp>
 #define LOGS_Enabled 0//to enable my test logs
-
+#define bufSize 20000
 static int orderNum = 0;
 std::ofstream file;
 typedef std::pair<double, int> pair;
 double epsilon = 0.001;
 std::mutex mtx;
-int finished = 0;
+std::condition_variable bufFull, bufEmpty;
+bool finished = 0;
 
 struct bufOrder {
     std::string cliOrd;
@@ -30,6 +33,20 @@ struct bufOrder {
     int side;
     int qty;
     double price;
+    bufOrder() {
+        cliOrd ="";
+        inst = "";
+        side = -1;
+        qty =-1;
+        price = -1;
+    }
+    bufOrder(const bufOrder& temp) {
+        cliOrd = temp.cliOrd;
+        inst = temp.inst;
+        side = temp.side;
+        qty = temp.qty;
+        price = temp.price;
+    }
     bufOrder(std::string a, std::string b, int c, int d, double e) {
         cliOrd = a;
         inst = b;
@@ -37,9 +54,12 @@ struct bufOrder {
         qty = d;
         price = e;
     }
-    
+
 };
-std::deque<bufOrder> buffer;
+//std::deque<bufOrder> buffer;
+boost::circular_buffer<bufOrder> buffer(bufSize);
+int bufCount = 0;
+
 
 class orderObj {
 public:
@@ -125,29 +145,36 @@ int readFile() {
                 nLines++;
                 continue;
             }
-            mtx.lock();
+            std::unique_lock<std::mutex> bufWriteLock(mtx);
+            bufFull.wait(bufWriteLock, [] {return bufCount != bufSize; });
             buffer.push_back(bufOrder(fields[fieldOrder[0]], fields[fieldOrder[1]], stoi(fields[fieldOrder[2]]), stoi(fields[fieldOrder[3]]), stod(fields[fieldOrder[4]])));
-            mtx.unlock();
+            bufCount++;
+            bufWriteLock.unlock();
+            bufEmpty.notify_one();
             nLines++;
+            
 
         }
+        finished = true;
         fclose(filePointer);
     }
-    finished = 1;
+    
+    
 }
+
 void driveLogic() {
-
-    while (!(finished && buffer.empty())) {
+    bufOrder temp;
+    while (!finished || bufCount != 0) {
+        std::unique_lock<std::mutex> bufReadLock(mtx);
+        if(!finished) bufEmpty.wait(bufReadLock, [] {return (bufCount != 0||finished); });
+        temp=buffer.front();
+        buffer.pop_front();
+        bufCount--;
+        validateAndCreate(temp.cliOrd, temp.inst, temp.side, temp.qty, temp.price);
+        bufReadLock.unlock();
+        bufFull.notify_one();
         if (LOGS_Enabled)std::cout << "finished: " << finished << std::endl;
-        if (!buffer.empty()) {
-            bufOrder temp(buffer.front());
-            mtx.lock();
-            buffer.pop_front();
-            mtx.unlock();
-            validateAndCreate(temp.cliOrd, temp.inst, temp.side, temp.qty, temp.price);
-        }
-        else continue;
-
+        
     }
 }
 
@@ -160,6 +187,7 @@ int main() {
     std::thread t2(driveLogic);
 
     t1.join();
+
     t2.join();
     file.close();
 
@@ -184,7 +212,7 @@ void writeToFile(std::shared_ptr<orderObj> x, int qty, double price) {
         << qty << ","
         << x->status << ","
         << transac_time() << "\n";
-
+    
     if (LOGS_Enabled)std::cout << "write to file finished!\n";
 
 }
