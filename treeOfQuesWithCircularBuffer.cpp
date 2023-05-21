@@ -19,7 +19,7 @@
 #include<boost/circular_buffer.hpp>
 #define LOGS_Enabled 0//to enable my test logs
 #define bufSize 20000
-static int orderNum = 0;
+
 std::ofstream file;
 typedef std::pair<double, int> pair;
 double epsilon = 0.001;
@@ -63,6 +63,7 @@ int bufCount = 0;
 
 class orderObj {
 public:
+    static int orderNum;
     std::string orderId;
     std::string clientOrderID;
     std::string inst;
@@ -78,6 +79,7 @@ public:
     }
 
 };
+int orderObj::orderNum = 0;
 typedef std::deque<std::shared_ptr<orderObj>> OrderPtrDeque;
 
 class instrument {
@@ -116,9 +118,10 @@ int readFile() {
 
         int fieldOrder[] = { 0,1,2,3,4 };
         int nLines = 0;
+        std::string line;
         while (fgets(linechar, 1024, filePointer)) {
 
-            std::string line = std::string(linechar);
+            line = std::string(linechar);
             if (!line.empty() && line[line.size() - 1] == '\n') {
                 line.erase(line.size() - 1);
             }
@@ -129,9 +132,8 @@ int readFile() {
             for (auto i = field_begin; i != field_end; ++i) {
                 fields.push_back(i->str(1));
             }
-            if (nLines == 0) {//first line of the file-headers
+            if (nLines == 0) {//first line of the file - headers
                 for (int i = 0; i < 5; i++) {
-                    std::cout << "dd" << fields[i] << "fff\n";
                     if (fields[i] == "Client Order ID" || fields[i] == "Client Order ID\n") fieldOrder[0] = i;
                     else if (fields[i] == "Instrument" || fields[i] == "Instrument\n") fieldOrder[1] = i;
                     else if (fields[i] == "Side" || fields[i] == "Side\n") fieldOrder[2] = i;
@@ -152,14 +154,10 @@ int readFile() {
             bufWriteLock.unlock();
             bufEmpty.notify_one();
             nLines++;
-            
-
         }
         finished = true;
         fclose(filePointer);
     }
-    
-    
 }
 
 void driveLogic() {
@@ -170,11 +168,10 @@ void driveLogic() {
         temp=buffer.front();
         buffer.pop_front();
         bufCount--;
-        validateAndCreate(temp.cliOrd, temp.inst, temp.side, temp.qty, temp.price);
         bufReadLock.unlock();
         bufFull.notify_one();
-        if (LOGS_Enabled)std::cout << "finished: " << finished << std::endl;
-        
+        validateAndCreate(temp.cliOrd, temp.inst, temp.side, temp.qty, temp.price);
+               
     }
 }
 
@@ -185,12 +182,9 @@ int main() {
     writeHeader();
     std::thread t1(readFile);
     std::thread t2(driveLogic);
-
     t1.join();
-
     t2.join();
     file.close();
-
 }
 
 
@@ -243,13 +237,15 @@ int initializeIns(int i) {
         return 1;
     }
     allInstruments[i] = temp;
+    
     switch (i) {
-    case 0: temp->name = "Rose"; std::cout << "Initialized the book for Rose\n"; break;
-    case 1: temp->name = "Lavender"; std::cout << "Initialized the book for Lavender\n"; break;
-    case 2: temp->name = "Lotus"; std::cout << "Initialized the book for Lotus\n"; break;
-    case 3: temp->name = "Tulip"; std::cout << "Initialized the book for Tulip\n"; break;
-    case 4: temp->name = "Orchid"; std::cout << "Initialized the book for Orchid\n"; break;
+    case 0: temp->name = "Rose"; break;
+    case 1: temp->name = "Lavender"; break;
+    case 2: temp->name = "Lotus"; break;
+    case 3: temp->name = "Tulip"; break;
+    case 4: temp->name = "Orchid";break;
     }
+    if (LOGS_Enabled) std::cout << "Initialized the book for "<< temp->name<<"\n";
     return 0;
 
 }
@@ -258,7 +254,6 @@ int validateAndCreate(std::string& cliOrd, std::string& inst, int& side, int& qt
     std::shared_ptr<orderObj> temp = std::make_shared<orderObj>(cliOrd, inst, side, qty, price);
     if (temp->status == "Rejected") {
         writeToFile(temp, temp->qty, temp->price);
-        //delete(temp);
         if (LOGS_Enabled)std::cout << "About to get deletd!\n";
         return 1;
     }
@@ -272,7 +267,6 @@ int validateAndCreate(std::string& cliOrd, std::string& inst, int& side, int& qt
     if (allInstruments[i] == NULL)initializeIns(i);
     allInstruments[i]->newOrder(temp);
     return 0;
-
 }
 
 
@@ -291,6 +285,7 @@ int minQty(std::shared_ptr<orderObj> x, std::shared_ptr<orderObj>y) {
     if (x->qty > y->qty)return y->qty;
     else return x->qty;
 }
+
 
 
 
@@ -330,9 +325,6 @@ int orderObj::executeQty(int qty) {
 
 
 // For test logs.................
-
-
-
 void printfDetails(std::shared_ptr<orderObj> x) {
     if (LOGS_Enabled)std::cout << "print details of follwing\n" << x->clientOrderID << ","
         << x->inst << ","
