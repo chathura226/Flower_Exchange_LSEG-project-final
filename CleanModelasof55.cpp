@@ -242,6 +242,9 @@ int minQty(std::shared_ptr<orderObj> x,std::shared_ptr<orderObj>y){
     else return x->qty;
 }
 
+
+
+
 //OrderObj member functions
 
 orderObj::orderObj(std::string& cliOrd, std::string& inst, int &side,int &qty,double &price){
