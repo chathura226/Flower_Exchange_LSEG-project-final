@@ -17,7 +17,7 @@
 #include<unordered_map>
 #include<condition_variable>
 #include<boost/circular_buffer.hpp>
-#define LOGS_Enabled 0//to enable my test logs
+#define LOGS_Enabled 1//to enable my test logs
 #define bufSize 20000//buffer size 
 std::ofstream file;//for writing execution report
 //below are for critical section control when treading
@@ -484,7 +484,7 @@ void sellOrderExec::execTransac(std::shared_ptr<orderObj>newObj, instrument& ins
 
 
 void sellOrderExec::exec(std::shared_ptr<orderObj>newObj, instrument& ins) {
-    relBegin = ins.sellBegin;
+    relBegin = ins.buyBegin;
     price = newObj->price;
     if (ins.buy.empty() || (relBegin->first) < price)insertOrder(newObj, ins); //this is a sell order and buy is empty or buy orders are lower
     else execTransac(newObj, ins);//this is a sell order and theres a matching order in buy
