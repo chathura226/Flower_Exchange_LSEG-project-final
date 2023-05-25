@@ -18,16 +18,14 @@
 #include<condition_variable>
 #include<boost/circular_buffer.hpp>
 #define LOGS_Enabled 0//to enable my test logs
-#define bufSize 20000
-
-std::ofstream file;
-typedef std::pair<double, int> pair;
-double epsilon = 0.001;
+#define bufSize 20000//buffer size 
+std::ofstream file;//for writing execution report
+//below are for critical section control when treading
 std::mutex mtx;
 std::condition_variable bufFull, bufEmpty;
 bool finished = 0;
 
-struct bufOrder {
+struct bufOrder {//structure that includes order details in the buffer before creating order objects
     std::string cliOrd;
     std::string inst;
     int side;
@@ -56,17 +54,18 @@ struct bufOrder {
     }
 
 };
-//std::deque<bufOrder> buffer;
-boost::circular_buffer<bufOrder> buffer(bufSize);
-int bufCount = 0;
-class OrderExec;
-class sellOrderExec;
-class buyOrderExec;
-class instrument;
 
-class orderObj {
+boost::circular_buffer<bufOrder> buffer(bufSize);//fixed size circular buffer to exchange order between threads
+int bufCount = 0;//no of items in the buffer
+
+class OrderExec;//super class for order execution method
+class sellOrderExec;//sub class of OrderExec for sell order execution method
+class buyOrderExec;//sub class of OrderExec for buy order execution method
+class instrument;//class that have structure for each instrument orderbook type
+
+class orderObj {//class of each order object
 public:
-    static int orderNum;
+    static int orderNum;//generate number for the new orders
     std::string orderId;
     int side;
     std::string status;
@@ -83,43 +82,51 @@ private:
     int qty;
     int executeQty(int qty);
 public:
-    orderObj();//define later
-    orderObj(std::string& cliOrd, std::string& inst, int& side, int& qty, double& price);
+    orderObj() {//default constructor - won't be called unless theres an error
+        orderId=-1;
+        clientOrderID = "";
+        this->inst = "";
+        this->side = -1;
+        this->qty = -1;
+        this->price = -1;
+        status = "Rejected";
+    }
+    orderObj(std::string& cliOrd, std::string& inst, int& side, int& qty, double& price);//parameterized constructor - this also has the logic to validate order
     ~orderObj() {
         if (LOGS_Enabled)std::cout << "OrderObj destructor called for ordNum: " << orderId << "\n";
     }
 };
 int orderObj::orderNum = 0;
-typedef std::deque<std::shared_ptr<orderObj>> OrderPtrDeque;
+typedef std::deque<std::shared_ptr<orderObj>> OrderPtrDeque;//typedef for deque for maps
 
 
 
-void writeToFile(std::shared_ptr<orderObj>, int, double);
-void writeHeader();
-std::string transac_time();
-void initializeInstrumentArray();
-int initializeIns(int);
-int validateAndCreate(std::string& cliOrd, std::string& inst, int& side, int& qty, double& price);
+void writeToFile(std::shared_ptr<orderObj>, int, double);//writing to execution report
+void writeHeader();//writing header of execution report
+std::string transac_time();//calculating transaction time
+void initializeInstrumentArray();//initializing insturmnt orderbook array
+int initializeIns(int);//initialiizing corresponding index of instrument orderbook array
+int validateAndCreate(std::string& cliOrd, std::string& inst, int& side, int& qty, double& price);//creating orderobj and validating
 void printfDetails(std::shared_ptr<orderObj> x);//for test logs
 int minQty(std::shared_ptr<orderObj> x, std::shared_ptr<orderObj>y);//compare qtys and find the correct qty
 
-class instrument {
+class instrument {//class for instrument orderbook
 public:
     std::string name;//name of instrument
 private:
-    std::map<const double, double, std::greater<double>> buy;//descending order
-    std::unordered_map<double, OrderPtrDeque> buyHash;
-    std::map<const double, double> sell;
-    std::unordered_map<double, OrderPtrDeque> sellHash;
-    std::map<const double, double>::iterator buyBegin;
-    std::map<const double, double>::iterator sellBegin;
+    std::map<const double, double, std::greater<double>> buy;//descending order -ordered map to keep sorted prices of buy orders
+    std::unordered_map<double, OrderPtrDeque> buyHash;//hash map that keeps relevent deques of prices for buy orders
+    std::map<const double, double> sell;//ordered map to keep sorted prices of buy orders
+    std::unordered_map<double, OrderPtrDeque> sellHash;//hash map that keeps relevent deques of prices for sell orders
+    std::map<const double, double>::iterator buyBegin;//iterator that keeps begining of ordered map of buy orders - to reducing time by not calclating everytime
+    std::map<const double, double>::iterator sellBegin;//iterator that keeps begining of ordered map of sell orders - to reducing time by not calclating everytime
     friend sellOrderExec;
     friend buyOrderExec;
 public:
     instrument();
 };
 
-class OrderExec {
+class OrderExec {//super class for sellOrderExec and buyOrderExec
 protected:
     double price;
     std::map<const double, double>::iterator relBegin;
@@ -129,7 +136,7 @@ public:
     virtual void exec(std::shared_ptr<orderObj>newObj, instrument& ins) = 0;
 };
 
-class sellOrderExec :public OrderExec {
+class sellOrderExec :public OrderExec {//class for sell order executions
 protected:
     void insertOrder(std::shared_ptr<orderObj>newObj, instrument& ins) override;
     void execTransac(std::shared_ptr<orderObj>newObj, instrument& ins) override;
@@ -137,7 +144,7 @@ public:
     void exec(std::shared_ptr<orderObj>newObj, instrument& ins) override;
 };
 
-class buyOrderExec : public OrderExec {
+class buyOrderExec : public OrderExec {//class for buy order executions
 protected:
     void insertOrder(std::shared_ptr<orderObj>newObj, instrument& ins) override;
     void execTransac(std::shared_ptr<orderObj>newObj, instrument& ins) override;
@@ -147,13 +154,31 @@ public:
 
 buyOrderExec buyOrderExecObj;//handles all types of buy order executions
 sellOrderExec sellOrderExecObj;//handles all types of sell order executions
+
 instrument* allInstruments[5];//pointer array for order books
 
+void driveLogic();//pulling from buffer and validate and execute
+int readFile();//reading from file and pushing to the buffer
 
-int readFile() {
-    std::string cliOrd="", inst="";
-    int side=-1, qty=-1;
-    double price=-1;
+
+int main() {
+    initializeInstrumentArray();
+    file.open("execution_rep.csv", std::ios_base::app);//to append
+    file << std::fixed << std::setprecision(2);//to have only upto two decimal points
+    writeHeader();
+    //multithreading
+    std::thread t1(readFile);
+    std::thread t2(driveLogic);
+    t1.join();
+    t2.join();
+
+    file.close();
+}
+
+int readFile() {//reading from file and pushing to the buffer
+    std::string cliOrd = "", inst = "";
+    int side = -1, qty = -1;
+    double price = -1;
     if (FILE* filePointer = fopen("orders.csv", "r")) {
         char linechar[1024];
 
@@ -173,7 +198,7 @@ int readFile() {
             for (auto i = field_begin; i != field_end; ++i) {
                 fields.push_back(i->str(1));
             }
-            if (nLines == 0) {//first line of the file - headers
+            if (nLines == 0) {//first line of the file - headers and work according to custome header field order
                 for (int i = 0; i < 5; i++) {
                     if (fields[i] == "Client Order ID" || fields[i] == "Client Order ID\n") fieldOrder[0] = i;
                     else if (fields[i] == "Instrument" || fields[i] == "Instrument\n") fieldOrder[1] = i;
@@ -201,7 +226,7 @@ int readFile() {
     }
 }
 
-void driveLogic() {
+void driveLogic() {//pulling from buffer and validate and execute
     bufOrder temp;
     while (!finished || bufCount != 0) {
         std::unique_lock<std::mutex> bufReadLock(mtx);
@@ -216,20 +241,8 @@ void driveLogic() {
     }
 }
 
-int main() {
-    initializeInstrumentArray();
-    file.open("execution_rep.csv", std::ios_base::app);//to append
-    file << std::fixed << std::setprecision(2);
-    writeHeader();
-    std::thread t1(readFile);
-    std::thread t2(driveLogic);
-    t1.join();
-    t2.join();
-    file.close();
-}
-
-
 void writeToFile(std::shared_ptr<orderObj> x, int qty, double price) {
+    //for testing ...............................................................................
     if (LOGS_Enabled)std::cout << "write to file called for following\n"
         << x->orderId << ","
         << x->clientOrderID << ","
@@ -238,7 +251,7 @@ void writeToFile(std::shared_ptr<orderObj> x, int qty, double price) {
         << x->status << ","
         << qty << ","
         << price << "\n";
-
+    //..........................................................................................
     file << x->clientOrderID << ","
         << x->orderId << ","
         << x->inst << ","
@@ -324,7 +337,7 @@ std::string transac_time() {
     return ss.str();
 }
 
-int minQty(std::shared_ptr<orderObj> x, std::shared_ptr<orderObj>y) {
+int minQty(std::shared_ptr<orderObj> x, std::shared_ptr<orderObj>y) {//comparing two order object's qty to find min qty
     if (LOGS_Enabled)std::cout << "minqty called for  " << x->qty << " " << y->qty << std::endl;
     if (x->qty > y->qty)return y->qty;
     else return x->qty;
@@ -334,9 +347,9 @@ int minQty(std::shared_ptr<orderObj> x, std::shared_ptr<orderObj>y) {
 
 
 
-//OrderObj member functions
+//OrderObj member functions.....................................................................................................................................
 
-orderObj::orderObj(std::string& cliOrd, std::string& inst, int& side, int& qty, double& price) {
+orderObj::orderObj(std::string& cliOrd, std::string& inst, int& side, int& qty, double& price) {//logic for order rejection also implemented here
     if (LOGS_Enabled)std::cout << "orderObj constructor called for cliorder num " << cliOrd << "\n";
     orderId = "ord" + std::to_string(++orderNum);
     clientOrderID = cliOrd;
@@ -379,7 +392,7 @@ void printfDetails(std::shared_ptr<orderObj> x) {
 }
 
 
-//Instrument member functions..........
+//Instrument member functions......................................................................................................................
 
 
 instrument::instrument() {
@@ -469,7 +482,7 @@ void sellOrderExec::exec(std::shared_ptr<orderObj>newObj, instrument& ins) {
     relBegin = ins.sellBegin;
     price = newObj->price;
     if (ins.buy.empty() || (relBegin->first) < price)insertOrder(newObj, ins); //this is a sell order and buy is empty or buy orders are lower
-    else execTransac(newObj, ins);
+    else execTransac(newObj, ins);//this is a sell order and theres a matching order in buy
 }
 
 
@@ -534,6 +547,7 @@ void buyOrderExec::execTransac(std::shared_ptr<orderObj>newObj, instrument& ins)
         else break;
 
     }
+    //when i ha
     // //when aggressive order is not fully completed->add to hash map and tree 
     //there cannot be orders with same price- since they would have executed before this. so just insert new one newly
     bool isBuyEmpty = ins.buy.empty();
@@ -550,6 +564,6 @@ void buyOrderExec::exec(std::shared_ptr<orderObj>newObj, instrument& ins) {
     relBegin = ins.sellBegin;
     price = newObj->price;
     if (ins.sell.empty() || (relBegin->first) > price)insertOrder(newObj, ins); //this is a buy order and sell is empty or sell orders are higher
-    else execTransac(newObj, ins);
+    else execTransac(newObj, ins);//this is a buy order and theres a matching order in sell
 }
 
