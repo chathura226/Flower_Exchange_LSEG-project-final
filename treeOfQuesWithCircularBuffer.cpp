@@ -45,12 +45,13 @@ struct bufOrder {//structure that includes order details in the buffer before cr
         qty = temp.qty;
         price = temp.price;
     }
-    bufOrder(std::string a, std::string b, int c, int d, double e) {
+    bufOrder(std::string a, std::string b, int c, double d,int e) {
         cliOrd = a;
         inst = b;
         side = c;
-        qty = d;
-        price = e;
+        price = d;
+        qty = e;
+        
     }
 
 };
@@ -199,17 +200,21 @@ int readFile() {//reading from file and pushing to the buffer
                 fields.push_back(i->str(1));
             }
             if (nLines == 0) {//first line of the file - headers and work according to custome header field order
-                for (int i = 0; i < 5; i++) {
-                    if (fields[i] == "Client Order ID" || fields[i] == "Client Order ID\n") fieldOrder[0] = i;
-                    else if (fields[i] == "Instrument" || fields[i] == "Instrument\n") fieldOrder[1] = i;
-                    else if (fields[i] == "Side" || fields[i] == "Side\n") fieldOrder[2] = i;
-                    else if (fields[i] == "Price" || fields[i] == "Price\n") fieldOrder[3] = i;
-                    else if (fields[i] == "Quantity" || fields[i] == "Quantity\n") fieldOrder[4] = i;
+                for (int k = 0; k < 5; k++) {
+                    if (fields[k] == "Client Order ID" || fields[k] == "Client Order ID\n") fieldOrder[0] = k;
+                    else if (fields[k] == "Instrument" || fields[k] == "Instrument\n") fieldOrder[1] = k;
+                    else if (fields[k] == "Side" || fields[k] == "Side\n") fieldOrder[2] = k;
+                    else if (fields[k] == "Price" || fields[k] == "Price\n") fieldOrder[3] = k;
+                    else if (fields[k] == "Quantity" || fields[k] == "Quantity\n") fieldOrder[4] = k;
                     else {
-                        std::cout << i << "Invalid header name found!\n";
+                        std::cout << k << "Invalid header name found!\n";
                         return 1;
                     }
                 }
+                
+                if (LOGS_Enabled)for (int k = 0; k < 5; k++)std::cout << fieldOrder[k];
+                if (LOGS_Enabled)std::cout << std::endl;
+
                 nLines++;
                 continue;
             }
