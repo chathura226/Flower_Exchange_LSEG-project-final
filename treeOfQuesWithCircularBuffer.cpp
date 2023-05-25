@@ -34,10 +34,10 @@ struct bufOrder {
     int qty;
     double price;
     bufOrder() {
-        cliOrd ="";
+        cliOrd = "";
         inst = "";
         side = -1;
-        qty =-1;
+        qty = -1;
         price = -1;
     }
     bufOrder(const bufOrder& temp) {
@@ -59,41 +59,39 @@ struct bufOrder {
 //std::deque<bufOrder> buffer;
 boost::circular_buffer<bufOrder> buffer(bufSize);
 int bufCount = 0;
-
+class OrderExec;
+class sellOrderExec;
+class buyOrderExec;
+class instrument;
 
 class orderObj {
 public:
     static int orderNum;
     std::string orderId;
+    int side;
+    std::string status;
+private:
+    friend void writeToFile(std::shared_ptr<orderObj>, int, double);
+    friend sellOrderExec;
+    friend buyOrderExec;
+    friend int minQty(std::shared_ptr<orderObj> x, std::shared_ptr<orderObj>y);
+    friend void printfDetails(std::shared_ptr<orderObj> x);//for test logs
+
     std::string clientOrderID;
     std::string inst;
-    int side;
     double price;
     int qty;
-    std::string status;
+    int executeQty(int qty);
+public:
     orderObj();//define later
     orderObj(std::string& cliOrd, std::string& inst, int& side, int& qty, double& price);
-    int executeQty(int qty);
     ~orderObj() {
         if (LOGS_Enabled)std::cout << "OrderObj destructor called for ordNum: " << orderId << "\n";
     }
-
 };
 int orderObj::orderNum = 0;
 typedef std::deque<std::shared_ptr<orderObj>> OrderPtrDeque;
 
-class instrument {
-public:
-    std::string name;
-    std::map<const double, double, std::greater<double>> buy;//descending order
-    std::unordered_map<double, OrderPtrDeque> buyHash;
-    std::map<const double, double> sell;
-    std::unordered_map<double, OrderPtrDeque> sellHash;
-    std::map<const double, double>::iterator buyBegin;
-    std::map<const double, double>::iterator sellBegin;
-    instrument();
-    void newOrder(std::shared_ptr<orderObj> newObj);
-};
 
 
 void writeToFile(std::shared_ptr<orderObj>, int, double);
@@ -105,14 +103,57 @@ int validateAndCreate(std::string& cliOrd, std::string& inst, int& side, int& qt
 void printfDetails(std::shared_ptr<orderObj> x);//for test logs
 int minQty(std::shared_ptr<orderObj> x, std::shared_ptr<orderObj>y);//compare qtys and find the correct qty
 
+class instrument {
+public:
+    std::string name;//name of instrument
+private:
+    std::map<const double, double, std::greater<double>> buy;//descending order
+    std::unordered_map<double, OrderPtrDeque> buyHash;
+    std::map<const double, double> sell;
+    std::unordered_map<double, OrderPtrDeque> sellHash;
+    std::map<const double, double>::iterator buyBegin;
+    std::map<const double, double>::iterator sellBegin;
+    friend sellOrderExec;
+    friend buyOrderExec;
+public:
+    instrument();
+};
 
+class OrderExec {
+protected:
+    double price;
+    std::map<const double, double>::iterator relBegin;
+    virtual void insertOrder(std::shared_ptr<orderObj>newObj, instrument& ins) = 0;
+    virtual void execTransac(std::shared_ptr<orderObj>newObj, instrument& ins) = 0;
+public:
+    virtual void exec(std::shared_ptr<orderObj>newObj, instrument& ins) = 0;
+};
+
+class sellOrderExec :public OrderExec {
+protected:
+    void insertOrder(std::shared_ptr<orderObj>newObj, instrument& ins) override;
+    void execTransac(std::shared_ptr<orderObj>newObj, instrument& ins) override;
+public:
+    void exec(std::shared_ptr<orderObj>newObj, instrument& ins) override;
+};
+
+class buyOrderExec : public OrderExec {
+protected:
+    void insertOrder(std::shared_ptr<orderObj>newObj, instrument& ins) override;
+    void execTransac(std::shared_ptr<orderObj>newObj, instrument& ins) override;
+public:
+    void exec(std::shared_ptr<orderObj>newObj, instrument& ins) override;
+};
+
+buyOrderExec buyOrderExecObj;//handles all types of buy order executions
+sellOrderExec sellOrderExecObj;//handles all types of sell order executions
 instrument* allInstruments[5];//pointer array for order books
 
 
 int readFile() {
-    std::string cliOrd, inst;
-    int side, qty;
-    double price;
+    std::string cliOrd="", inst="";
+    int side=-1, qty=-1;
+    double price=-1;
     if (FILE* filePointer = fopen("orders.csv", "r")) {
         char linechar[1024];
 
@@ -164,14 +205,14 @@ void driveLogic() {
     bufOrder temp;
     while (!finished || bufCount != 0) {
         std::unique_lock<std::mutex> bufReadLock(mtx);
-        if(!finished) bufEmpty.wait(bufReadLock, [] {return (bufCount != 0||finished); });
-        temp=buffer.front();
+        if (!finished) bufEmpty.wait(bufReadLock, [] {return (bufCount != 0 || finished); });
+        temp = buffer.front();
         buffer.pop_front();
         bufCount--;
         bufReadLock.unlock();
         bufFull.notify_one();
         validateAndCreate(temp.cliOrd, temp.inst, temp.side, temp.qty, temp.price);
-               
+
     }
 }
 
@@ -206,7 +247,7 @@ void writeToFile(std::shared_ptr<orderObj> x, int qty, double price) {
         << qty << ","
         << x->status << ","
         << transac_time() << "\n";
-    
+
     if (LOGS_Enabled)std::cout << "write to file finished!\n";
 
 }
@@ -237,15 +278,15 @@ int initializeIns(int i) {
         return 1;
     }
     allInstruments[i] = temp;
-    
+
     switch (i) {
     case 0: temp->name = "Rose"; break;
     case 1: temp->name = "Lavender"; break;
     case 2: temp->name = "Lotus"; break;
     case 3: temp->name = "Tulip"; break;
-    case 4: temp->name = "Orchid";break;
+    case 4: temp->name = "Orchid"; break;
     }
-    if (LOGS_Enabled) std::cout << "Initialized the book for "<< temp->name<<"\n";
+    if (LOGS_Enabled) std::cout << "Initialized the book for " << temp->name << "\n";
     return 0;
 
 }
@@ -253,19 +294,22 @@ int initializeIns(int i) {
 int validateAndCreate(std::string& cliOrd, std::string& inst, int& side, int& qty, double& price) {
     std::shared_ptr<orderObj> temp = std::make_shared<orderObj>(cliOrd, inst, side, qty, price);
     if (temp->status == "Rejected") {
-        writeToFile(temp, temp->qty, temp->price);
+        writeToFile(temp, qty, price);
         if (LOGS_Enabled)std::cout << "About to get deletd!\n";
         return 1;
     }
-    int i;
-    if (temp->inst == std::string("Rose"))i = 0;
-    else if (temp->inst == std::string("Lavender"))i = 1;
-    else if (temp->inst == std::string("Lotus"))i = 2;
-    else if (temp->inst == std::string("Tulip"))i = 3;
-    else if (temp->inst == std::string("Orchid"))i = 4;
+    //finding the corresponding index number of instrument order book
+    int i = 0;
+    if (inst == std::string("Rose"))i = 0;
+    else if (inst == std::string("Lavender"))i = 1;
+    else if (inst == std::string("Lotus"))i = 2;
+    else if (inst == std::string("Tulip"))i = 3;
+    else if (inst == std::string("Orchid"))i = 4;
 
     if (allInstruments[i] == NULL)initializeIns(i);
-    allInstruments[i]->newOrder(temp);
+    if (side == 1)buyOrderExecObj.exec(temp, *allInstruments[i]);
+    else sellOrderExecObj.exec(temp, *allInstruments[i]);
+    
     return 0;
 }
 
@@ -315,10 +359,10 @@ int orderObj::executeQty(int qty) {
     this->status = "Pfill";
     if (this->qty == 0) {
         this->status = "Fill";
-        if (LOGS_Enabled)std::cout << "Execute order finished!\n";
+        if (LOGS_Enabled)std::cout << "Execute order finished with fill!\n";
         return 1;//returns 1 when order is fill
     }
-    if (LOGS_Enabled)std::cout << "Execute order finished!\n";
+    if (LOGS_Enabled)std::cout << "Execute order finished with pFill!\n";
     return 0;//return 0 when pfill
 
 }
@@ -343,150 +387,169 @@ instrument::instrument() {
     sellBegin = sell.begin();
 }
 
-void instrument::newOrder(std::shared_ptr<orderObj> newObj) {
-    double price = newObj->price;
-    if (LOGS_Enabled)std::cout << "Accessing " << name << " newOrder method\n";
-    auto relBegin = (newObj->side == 2) ? buyBegin : sellBegin;
-    if (newObj->side == 1 && (sell.empty() || (relBegin->first) > price)) {//this is a buy order and sell is empty or sell orders are higher
-        if (LOGS_Enabled)std::cout << "Entered case 1: is sell.empty-> " << sell.empty() << " Buy.empty()-> " << buy.empty() << "\n";
-        auto samePrice = buyHash.find(price);
-        if (samePrice != buyHash.end()) {//there are elements with same price
-            if (LOGS_Enabled)std::cout << "There are elements with same price\n";
-            if (LOGS_Enabled)std::cout << "deque size: " << samePrice->second.size() << "\n";
-            samePrice->second.push_back(newObj);
 
-        }
-        else {//there are no elements with same price. so add the element and ad the reference to Highest Priority map
-            if (LOGS_Enabled)std::cout << "There are no elements with same price\n";
-            bool isBuyEmpty = buy.empty();
-            auto y = buy.insert({ price,price });
-            buyHash[price].push_back(newObj);
-            if (LOGS_Enabled)std::cout << "deque is created for the price : " << price << std::endl;
-            if (isBuyEmpty)buyBegin = y.first;
-            else if (price > buyBegin->second)buyBegin = y.first;//if new buy order has higher price, update map begin
-        }
-        writeToFile(newObj, newObj->qty, price);
-        return;
+
+//SellOrderExec member function defiitions..........................................................................................................
+
+void sellOrderExec::insertOrder(std::shared_ptr<orderObj>newObj, instrument& ins) {
+    if (LOGS_Enabled)std::cout << "Entered case 2: is buy.empty-> " << ins.buy.empty() << " sell.empty-> " << ins.sell.empty() << "\n";
+    auto samePrice = ins.sellHash.find(price);
+    if (samePrice != ins.sellHash.end()) {//there are elements with same price
+        if (LOGS_Enabled)std::cout << "There are elements with same price\n";
+        if (LOGS_Enabled)std::cout << "deque size: " << samePrice->second.size() << "\n";
+        samePrice->second.push_back(newObj);
     }
-    else if (newObj->side == 2 && (buy.empty() || (relBegin->first) < price)) {
-        if (LOGS_Enabled)std::cout << "Entered case 2: is buy.empty-> " << buy.empty() << " sell.empty-> " << sell.empty() << "\n";
-        auto samePrice = sellHash.find(price);
-        if (samePrice != sellHash.end()) {//there are elements with same price
-            if (LOGS_Enabled)std::cout << "There are elements with same price\n";
-            if (LOGS_Enabled)std::cout << "deque size: " << samePrice->second.size() << "\n";
-            samePrice->second.push_back(newObj);
-        }
-        else {//there are no elements with same price. so add the element and ad the reference to Highest Priority map
-            bool isSellEmpty = sell.empty();
-            auto y = sell.insert({ price,price });
-            sellHash[price].push_back(newObj);
-            if (LOGS_Enabled)std::cout << "deque is created for the price : " << price << std::endl;
-            if (isSellEmpty)sellBegin = y.first;
-            else if (price < sellBegin->second)sellBegin = y.first;//if new sell order has lower price, update map begin
-
-        }
-        writeToFile(newObj, newObj->qty, newObj->price);
-        return;
-
-    }
-    else if (newObj->side == 1) {//this is a buy order and theres a sell order for equal or low price
-        double relBeginPrice = relBegin->second;
-        if (LOGS_Enabled)std::cout << "inside side==1 but sell is not empty" << std::endl;
-        while (!sell.empty() && (relBeginPrice) <= price) {
-            std::shared_ptr<orderObj> relObj = sellHash[relBeginPrice].front();//object that gonna execute with new order
-            int execQty = minQty(newObj, relObj);
-            if (LOGS_Enabled)printfDetails(relObj);
-            if (LOGS_Enabled)std::cout << "excec qty " << execQty << std::endl;
-            int isFill1 = newObj->executeQty(execQty);
-
-            writeToFile(newObj, execQty, relBeginPrice);
-            int isFill2 = relObj->executeQty(execQty);
-            writeToFile(relObj, execQty, relBeginPrice);
-
-            if (isFill2) {//if relevent object from the orderbook fully executed
-                sellHash[relBeginPrice].pop_front();
-                if (sellHash[relBeginPrice].empty()) {//queue is empty->so delete it from tree and hash map
-                    relBegin++;
-                    sellBegin = relBegin;//update new begining of tree
-                    sellHash.erase(relBeginPrice);
-                    sell.erase(relBeginPrice);
-                }//else -> there are elements with same price->same relbegin         
-                if (LOGS_Enabled)std::cout << "About to be deleted!\n";
-            }
-            if (isFill1) {//if new order object fully executed
-                //dont have to delete manually since its a shared pointer
-                if (LOGS_Enabled)std::cout << "about to get deleted\n";
-                return;
-            }
-
-            if (!sell.empty()) {
-                relBegin = sellBegin;
-                relBeginPrice = relBegin->second;
-            }
-            else break;
-
-        }
-        // //when aggressive order is not fully completed->add to hash map and tree 
-        //there cannot be orders with same price- since they would have executed before this. so just insert new one newly
-        bool isBuyEmpty = buy.empty();
-        auto y = buy.insert({ price,price });
-        buyHash[price].push_back(newObj);
+    else {//there are no elements with same price. so add the element and ad the reference to Highest Priority map
+        bool isSellEmpty = ins.sell.empty();
+        auto y = ins.sell.insert({ price,price });
+        ins.sellHash[price].push_back(newObj);
         if (LOGS_Enabled)std::cout << "deque is created for the price : " << price << std::endl;
-        if (isBuyEmpty)buyBegin = y.first;
-        else if (price > buyBegin->second)buyBegin = y.first;
+        if (isSellEmpty)ins.sellBegin = y.first;
+        else if (price < ins.sellBegin->second)ins.sellBegin = y.first;//if new sell order has lower price, update map begin
 
     }
-    else if (newObj->side == 2) {//this is a sell order and theres a buy order for equal or high price
-        double relBeginPrice = relBegin->second;
-        if (LOGS_Enabled)std::cout << "inside side==2 but buy is not empty" << std::endl;
-        while (!buy.empty() && (relBeginPrice) >= newObj->price) {
+    writeToFile(newObj, newObj->qty, newObj->price);
+    return;
 
-            std::shared_ptr<orderObj> relObj = buyHash[relBeginPrice].front();//object that gonna execute with new order
-            if (LOGS_Enabled)std::cout << "inside while loop\n";
-            int execQty = minQty(newObj, relObj);
-            if (LOGS_Enabled)printfDetails(relObj);
-            if (LOGS_Enabled)std::cout << "excec qty " << execQty << std::endl;
-            int isFill1 = newObj->executeQty(execQty);
+}
+void sellOrderExec::execTransac(std::shared_ptr<orderObj>newObj, instrument& ins) {
+    double relBeginPrice = relBegin->second;
+    if (LOGS_Enabled)std::cout << "inside side==2 but buy is not empty" << std::endl;
+    while (!ins.buy.empty() && (relBeginPrice) >= newObj->price) {
 
-            writeToFile(newObj, execQty, relBeginPrice);
-            int isFill2 = relObj->executeQty(execQty);
-            writeToFile(relObj, execQty, relBeginPrice);
+        std::shared_ptr<orderObj> relObj = ins.buyHash[relBeginPrice].front();//object that gonna execute with new order
+        if (LOGS_Enabled)std::cout << "inside while loop\n";
+        int execQty = minQty(newObj, relObj);
+        if (LOGS_Enabled)printfDetails(relObj);
+        if (LOGS_Enabled)std::cout << "excec qty " << execQty << std::endl;
+        int isFill1 = newObj->executeQty(execQty);
 
-            if (isFill2) {//if relevent object from the orderbook fully executed
+        writeToFile(newObj, execQty, relBeginPrice);
+        int isFill2 = relObj->executeQty(execQty);
+        writeToFile(relObj, execQty, relBeginPrice);
 
-                buyHash[relBeginPrice].pop_front();
-                if (buyHash[relBeginPrice].empty()) {//queue is empty->so delete it from tree and hash map
+        if (isFill2) {//if relevent object from the orderbook fully executed
 
-                    relBegin++;
-                    buyBegin = relBegin;//update new begining of tree
-                    buyHash.erase(relBeginPrice);
-                    buy.erase(relBeginPrice);
-                }//else -> there are elements with same price->same relbegin         
-                if (LOGS_Enabled)std::cout << "About to be deleted!\n";
-            }
+            ins.buyHash[relBeginPrice].pop_front();
+            if (ins.buyHash[relBeginPrice].empty()) {//queue is empty->so delete it from tree and hash map
 
-            if (isFill1) {//if new order object fully executed
-                //dont have to delete manually since its a shared pointer
-                if (LOGS_Enabled)std::cout << "About to get deleted!\n";
-                return;
-            }
-            if (!buy.empty()) {
-                relBegin = buyBegin;
-                relBeginPrice = relBegin->second;
-            }
-            else break;
+                relBegin++;
+                ins.buyBegin = relBegin;//update new begining of tree
+                ins.buyHash.erase(relBeginPrice);
+                ins.buy.erase(relBeginPrice);
+            }//else -> there are elements with same price->same relbegin         
+            if (LOGS_Enabled)std::cout << "About to be deleted!\n";
         }
 
-        // //when aggressive order is not fully completed->add to hash map and tree 
-        //there cannot be orders with same price- since they would have executed before this. so just insert new one newly
-        bool isSellEmpty = sell.empty();
-        auto y = sell.insert({ price,price });
-        sellHash[price].push_back(newObj);
-        if (LOGS_Enabled)std::cout << "deque is created for the price : " << price << std::endl;
-        if (isSellEmpty)sellBegin = y.first;
-        else if (price > sellBegin->second)sellBegin = y.first;
-
+        if (isFill1) {//if new order object fully executed
+            //dont have to delete manually since its a shared pointer
+            if (LOGS_Enabled)std::cout << "About to get deleted!\n";
+            return;
+        }
+        if (!ins.buy.empty()) {
+            relBegin = ins.buyBegin;
+            relBeginPrice = relBegin->second;
+        }
+        else break;
     }
+
+    // //when aggressive order is not fully completed->add to hash map and tree 
+    //there cannot be orders with same price- since they would have executed before this. so just insert new one newly
+    bool isSellEmpty = ins.sell.empty();
+    auto y = ins.sell.insert({ price,price });
+    ins.sellHash[price].push_back(newObj);
+    if (LOGS_Enabled)std::cout << "deque is created for the price : " << price << std::endl;
+    if (isSellEmpty)ins.sellBegin = y.first;
+    else if (price > ins.sellBegin->second)ins.sellBegin = y.first;
+
 }
 
+
+void sellOrderExec::exec(std::shared_ptr<orderObj>newObj, instrument& ins) {
+    relBegin = ins.sellBegin;
+    price = newObj->price;
+    if (ins.buy.empty() || (relBegin->first) < price)insertOrder(newObj, ins); //this is a sell order and buy is empty or buy orders are lower
+    else execTransac(newObj, ins);
+}
+
+
+
+//buyOrderExec member function defiitions..........................................................................................................
+
+void buyOrderExec::insertOrder(std::shared_ptr<orderObj>newObj, instrument& ins)  {
+    if (LOGS_Enabled)std::cout << "Entered case 1: is sell.empty-> " << ins.sell.empty() << " Buy.empty()-> " << ins.buy.empty() << "\n";
+    auto samePrice = ins.buyHash.find(price);
+    if (samePrice != ins.buyHash.end()) {//there are elements with same price
+        if (LOGS_Enabled)std::cout << "There are elements with same price\n";
+        if (LOGS_Enabled)std::cout << "deque size: " << samePrice->second.size() << "\n";
+        samePrice->second.push_back(newObj);
+
+    }
+    else {//there are no elements with same price. so add the element and ad the reference to Highest Priority map
+        if (LOGS_Enabled)std::cout << "There are no elements with same price\n";
+        bool isBuyEmpty = ins.buy.empty();//checking whether the map is empty before insert
+        auto y = ins.buy.insert({ price,price });
+        ins.buyHash[price].push_back(newObj);
+        if (LOGS_Enabled)std::cout << "deque is created for the price : " << price << std::endl;
+        if (isBuyEmpty)ins.buyBegin = y.first;//if map was empty before insert, newOrder is the begin
+        else if (price > ins.buyBegin->second)ins.buyBegin = y.first;//if new buy order has higher price, update map begin
+    }
+    writeToFile(newObj, newObj->qty, price);
+    return;
+}
+void buyOrderExec::execTransac(std::shared_ptr<orderObj>newObj, instrument& ins) {
+    double relBeginPrice = relBegin->second;
+    if (LOGS_Enabled)std::cout << "inside side==1 but sell is not empty" << std::endl;
+    while (!ins.sell.empty() && (relBeginPrice) <= price) {
+        std::shared_ptr<orderObj> relObj = ins.sellHash[relBeginPrice].front();//object that gonna execute with new order
+        int execQty = minQty(newObj, relObj);
+        if (LOGS_Enabled)printfDetails(relObj);
+        if (LOGS_Enabled)std::cout << "excec qty " << execQty << std::endl;
+        int isFill1 = newObj->executeQty(execQty);
+
+        writeToFile(newObj, execQty, relBeginPrice);
+        int isFill2 = relObj->executeQty(execQty);
+        writeToFile(relObj, execQty, relBeginPrice);
+
+        if (isFill2) {//if relevent object from the orderbook fully executed
+            ins.sellHash[relBeginPrice].pop_front();
+            if (ins.sellHash[relBeginPrice].empty()) {//queue is empty->so delete it from tree and hash map
+                relBegin++;
+                ins.sellBegin = relBegin;//update new begining of tree
+                ins.sellHash.erase(relBeginPrice);
+                ins.sell.erase(relBeginPrice);
+            }//else -> there are elements with same price->same relbegin         
+            if (LOGS_Enabled)std::cout << "About to be deleted!\n";
+        }
+        if (isFill1) {//if new order object fully executed
+            //dont have to delete manually since its a shared pointer
+            if (LOGS_Enabled)std::cout << "about to get deleted\n";
+            return;
+        }
+
+        if (!ins.sell.empty()) {
+            relBegin = ins.sellBegin;
+            relBeginPrice = relBegin->second;
+        }
+        else break;
+
+    }
+    // //when aggressive order is not fully completed->add to hash map and tree 
+    //there cannot be orders with same price- since they would have executed before this. so just insert new one newly
+    bool isBuyEmpty = ins.buy.empty();
+    auto y = ins.buy.insert({ price,price });
+    ins.buyHash[price].push_back(newObj);
+    if (LOGS_Enabled)std::cout << "deque is created for the price : " << price << std::endl;
+    if (isBuyEmpty)ins.buyBegin = y.first;
+    else if (price > ins.buyBegin->second)ins.buyBegin = y.first;
+
+}
+
+
+void buyOrderExec::exec(std::shared_ptr<orderObj>newObj, instrument& ins) {
+    relBegin = ins.sellBegin;
+    price = newObj->price;
+    if (ins.sell.empty() || (relBegin->first) > price)insertOrder(newObj, ins); //this is a buy order and sell is empty or sell orders are higher
+    else execTransac(newObj, ins);
+}
 
