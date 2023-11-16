@@ -1,13 +1,13 @@
 # Flower_Exchange_LSEG-project-final
 ## Stock exchange prototype implemented using C++
-  Many data structures have been used to test the efficiency and those are in the 'for testing' folder
-
-  The finalized program is implemented using Hash Maps, Red black tree containing queues for order book that handles the exchanges
+    Many data structures have been used to test the efficiency and those are in the 'for testing' folder
+  
+    The finalized program is implemented using Hash Maps, Red black tree containing queues for order book that handles the exchanges
 
 ## Main Features
-  The program is a MultiThreaded Application with the use of necessary Mutex locks.
-  Use of circular buffer by Boost for buffer to exchange data between threads using mutex locks
-  Adhering to best practices and OOP concepts
+    The program is a MultiThreaded Application with the use of necessary Mutex locks.
+    Use of circular buffer by Boost for buffer to exchange data between threads using mutex locks.
+    Adhering to best practices and OOP concepts
 
 ## Basic order.csv file example
 Order #1
