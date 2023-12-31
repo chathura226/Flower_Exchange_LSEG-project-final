@@ -5,9 +5,10 @@
     The finalized program is implemented using Hash Maps, Red black tree containing queues for order book that handles the exchanges
 
 ## Main Features
-    The program is a MultiThreaded Application with the use of necessary Mutex locks.
-    Use of circular buffer by Boost for buffer to exchange data between threads using mutex locks.
-    Adhering to best practices and OOP concepts
+- The program is a MultiThreaded Application with the use of necessary Mutex locks.
+- Use of circular buffer by Boost for buffer to exchange data between threads using mutex locks.
+- Usage of optimized algorithms and data structures for efficiency
+- Adhering to best practices and OOP concepts
 
 ## Basic order.csv file example
 Order #1
